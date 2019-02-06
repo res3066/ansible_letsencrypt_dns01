@@ -1,0 +1,136 @@
+---
+# tasks file for letsencrypt-dns01    
+
+- local_action: file name="{{ host_specific_files }}/crypto" state=directory mode=0700 recurse=yes
+
+# the host addresses should go in the inventory file; since we are updating dns and not
+# gathering facts, the source of truth is the inventory file
+#
+# the "approved" way to set these is ansible_v4host and ansible_v6host (which belong to us) not
+# ansible_host which belongs to ansible - probably ought to reevaluate the namespace here.
+# nevertheless, if only ansible_host is set, we'll try to run with it.
+#
+# it is fine, btw, to have hosts with no A or AAAA records for them at all.  these hosts will
+# just get a txt record, no ip address.  applications may include updating a bind view that
+# faces LetsEncrypt's nameservers for the purposes of genning up certs for internal devices.
+
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
+    record: "{{ inventory_hostname_short }}"
+    type: A
+    value: "{{ ansible_host }}"
+  when: ansible_host != "localhost" and ansible_v4host is not defined and ansible_v6host is not defined
+
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
+    record: "{{ inventory_hostname_short }}"
+    type: A
+    value: "{{ ansible_v4host }}"
+  when: ansible_v4host is defined 
+
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
+    record: "{{ inventory_hostname_short }}"
+    type: AAAA
+    value: "{{ ansible_v6host }}"
+  when: ansible_v6host is defined
+
+- local_action:
+    module: openssl_privatekey
+    path: "{{ host_specific_files }}/crypto/server.key"
+    type: RSA
+    size: 2048
+
+- local_action:
+    module: openssl_privatekey
+    path: "files/account.key"
+    size:  4096
+  run_once: true
+
+- local_action:
+    module: openssl_csr
+    email_address: "{{ cert_emailaddress }}"
+    common_name: "{{ inventory_hostname }}"
+    subject_alt_name: "{{ subjectaltname if subjectaltname is defined else omit }}"
+    path: "{{ host_specific_files }}/crypto/server.csr"
+    privatekey_path: "{{ host_specific_files }}/crypto/server.key" 
+
+- local_action:
+    module: acme_certificate
+    account_key_src: "{{ inventory_dir }}/files/account.key"
+    account_email: "{{ cert_emailaddress }}"
+    src: "{{ host_specific_files }}/crypto/server.csr"
+    cert: "{{ host_specific_files }}/crypto/server.crt"
+    challenge: dns-01
+    acme_directory: "https://{{ which_ca }}/directory"
+    # Renew if the certificate is at least 30 days old
+    remaining_days: 60
+  register: dnschallenge
+
+# WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
+# thanks acme guys and yaml parser writers.  
+
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
+    record: "_acme-challenge.{{ inventory_hostname_short }}"
+    type: TXT
+    value: "{{ dnschallenge.challenge_data.get(inventory_hostname)['dns-01'].resource_value }}"
+  when: "dnschallenge.changed == true"
+
+# - local_action:
+#        module: debug
+#        var: dnschallenge
+
+# unfortunately unchanged subjectaltname list in the host_vars file is not idempotent; you'll
+# get a dns update message for each of them, but this should be harmless.
+
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ item.split('.', 1)[1] }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1].split('.')[0] }}"
+    type: TXT
+    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
+  with_items: "{{ subjectaltname }}"
+  when: dnschallenge.changed == true and subjectaltname is defined
+
+
+
+- local_action:
+    module: acme_certificate
+    account_key_src: "{{ inventory_dir }}/files/account.key"
+    account_email: "{{ cert_emailaddress }}"
+    src: "{{ host_specific_files }}/crypto/server.csr"
+    cert: "{{ host_specific_files }}/crypto/server.crt"
+    fullchain: "{{ host_specific_files }}/crypto/server-fullchain.crt"
+    chain: "{{ host_specific_files }}/crypto/server-intermediate.crt"
+    challenge: dns-01
+    acme_directory: "https://{{ which_ca }}/directory"
+    remaining_days: 60
+    data: "{{ dnschallenge }}"
+  when: "dnschallenge.changed == true"
+
+...
