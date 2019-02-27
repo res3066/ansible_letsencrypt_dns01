@@ -82,6 +82,11 @@
     remaining_days: 60
   register: dnschallenge
 
+
+- local_action:
+    module: debug
+    msg:  "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
+
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
@@ -91,11 +96,12 @@
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
-    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
-    record: "_acme-challenge.{{ inventory_hostname_short }}"
+    zone: "{{ acmecnamezone | default(inventory_hostname.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
     type: TXT
     value: "{{ dnschallenge.challenge_data.get(inventory_hostname)['dns-01'].resource_value }}"
   when: "dnschallenge.changed == true"
+
 
 # - local_action:
 #        module: debug
@@ -110,8 +116,10 @@
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
-    zone: "{{ item.split('.', 1)[1] }}"
-    record: "_acme-challenge.{{ item.split(':', 1)[1].split('.')[0] }}"
+#    zone: "{{ item.split('.', 1)[1] }}"
+    zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
+#     record: "_acme-challenge.{{ item.split(':', 1)[1].split('.')[0] }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
     value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
   with_items: "{{ subjectaltname }}"
