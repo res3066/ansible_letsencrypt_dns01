@@ -27,6 +27,7 @@ You're probably eventually going to want to wildcard a zone.  Try this
 in your named.conf (it's good practice to put generation dates in your
 tsig key name):
 
+```
 zone "vpn.example.com" {
         type master ;
         file "master/rs/vpn.example.com-dynamic" ;
@@ -35,7 +36,33 @@ zone "vpn.example.com" {
 
         } ;
 } ;
+```
 
+Mixing manually updated zones (especially hand edited zone files)
+and dynamically updated zones is a recipe for annoyance if not tears.
+What to do?  It turns out that ACME will in fact follow a CNAME, even
+to a non-child, non-same-origin (I'm tempted to say "out of baliwick"
+but the DNS pedants will call me out on subtly incorrect use) zone
+without even abusing the Public Suffix List (cough) which came to me
+as a complete surprise to me since I figured such behavior would
+constitute an attack surface.
+
+The solution is to designate a zone where you're going to put all of your acme challenge
+responses in that zone and CNAME into it for the _acme-challenge records for all your hosts.
+
+Example:
+
+```
+$ORIGIN example.org
+demo           IN      A	192.0.2.33
+_acme-challenge.demo   IN      CNAME   _acme-challenge.demo.example.com.acme.example.com.
+```
+
+Note the ORIGIN of example.org and the CNAME pointing to acme.example.com, with the FQDN of
+the record being prepended to the dynamic update zone (which need only be updateable for TXT since
+that's all you're ever going to put in it).
+
+To support this behavior, set the "acmecnamezone" variable in some appropriate place.
 
 
 Role Variables
@@ -49,6 +76,7 @@ You can override them per host with files in playbook_dir/host_vars/inventory_ho
 
 In addition to other variables, you should set these there:
 
+```
 host_specific_files: "{{ inventory_dir }}/host_files/{{ inventory_hostname }}"
 
 which_ca: acme-staging.api.letsencrypt.org
@@ -60,7 +88,13 @@ nsupdate_hmac: hmac-sha256
 nsupdate_key_name: vpn.example.com-20190205-00
 nsupdate_key_secret: base64-nsupdate-key-secret==
 nsupdate_server: ns.example.com
+```
 
+Optional (but you probably want):
+
+```
+acmecnamezone: "acme.example.org"
+```
 
 Note that while you can overwrite which nameserver you're talking to
 for which host in your ansible inventory (as well as the key secrets
@@ -80,17 +114,20 @@ Example Playbook
 
 Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
 
+```
 - hosts: vpnservers
   gather_facts: no
   tasks:
     - include_role:
         name: letsencrypt-dns01
 
+```
 
 Once you've run this role, you will be rewarded with a series of files
 (with traditional-ish names) in
 play_dir/host_files/hostname.vpn.example.org/crypto/
 
+```
 [root@ansible ~/workdir]# ls -l host_files/hostname.vpn.example.org/crypto/
 total 33
 -rw-r--r-- 1 root root 3566 Feb  6 20:25 server-fullchain.crt
@@ -99,17 +136,16 @@ total 33
 -rw-r--r-- 1 root root 1033 Feb  6 20:25 server.csr
 -rw------- 1 root root 1704 Feb  6 20:25 server.key
 [root@ansible ~/workdir]# 
-
+```
 
 
 License
 -------
 
-BSD
+MIT
 
 Author Information
 ------------------
 
 rs@seastrom.com
-
 

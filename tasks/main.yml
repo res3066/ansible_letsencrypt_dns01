@@ -141,4 +141,33 @@
     data: "{{ dnschallenge }}"
   when: "dnschallenge.changed == true"
 
+# clean up the mess
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(inventory_hostname.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
+    type: TXT
+    value: "{{ dnschallenge.challenge_data.get(inventory_hostname)['dns-01'].resource_value }}"
+    state: absent
+  when: "dnschallenge.changed == true"
+
+- local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
+    type: TXT
+    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
+    state: absent
+  with_items: "{{ subjectaltname }}"
+  when: dnschallenge.changed == true and subjectaltname is defined
+
+
 ...
