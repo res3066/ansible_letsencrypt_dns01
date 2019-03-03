@@ -53,18 +53,44 @@
     value: "{{ ansible_v6host }}"
   when: ansible_v6host is defined
 
+- name: check if cert key exists
+  local_action:
+    module: stat
+    path: "{{ host_specific_files }}/crypto/server.key"
+  register: cert_key_stat
+  
 - name: openssl private key (specific to this cert)
   local_action:
     module: openssl_privatekey
     path: "{{ host_specific_files }}/crypto/server.key"
     type: RSA
     size: 2048
+  when: cert_key_stat.exists == False
 
+- name: check if account key exists
+  local_action:
+    module: stat
+    path: "files/account.key"
+  register: account_key_stat
+  
 - name: account key for ACME (all hosts in this playbook)
   local_action:
     module: openssl_privatekey
     path: "files/account.key"
     size:  4096
+  run_once: true
+  when: account_key_stat.exists == False
+
+- name: Make sure account exists and has given contacts. We agree to TOS.
+  local_action:
+    module: acme_account
+    account_key_src: "files/account.key"
+    state: present
+    terms_agreed: yes
+    acme_directory: "https://{{ which_ca }}/directory"
+    acme_version: 2
+    contact:
+      - "mailto:{{cert_emailaddress}}"
   run_once: true
 
 - name: making a certificate signing request
@@ -85,6 +111,7 @@
     cert: "{{ host_specific_files }}/crypto/server.crt"
     challenge: dns-01
     acme_directory: "https://{{ which_ca }}/directory"
+    acme_version: 2
     # Renew if the certificate is at least 30 days old
     remaining_days: 60
   register: dnschallenge
@@ -148,6 +175,7 @@
     challenge: dns-01
     acme_directory: "https://{{ which_ca }}/directory"
     remaining_days: 60
+    acme_version: 2
     data: "{{ dnschallenge }}"
   when: "dnschallenge.changed == true"
 
