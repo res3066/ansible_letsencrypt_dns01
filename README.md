@@ -64,6 +64,36 @@ that's all you're ever going to put in it).
 
 To support this behavior, set the "acmecnamezone" variable in some appropriate place.
 
+CAVEATS:
+
+1) When you set up your wildcard zone for dynamic updates, reliability is not a criterion.  Velocity
+of entire NS-set being on the same page, however, is - you'll be doing an update and then expecting
+consistency within a very small number of seconds.  As a result, delegating it to only a single
+nameserver will help avoid any transient failures and resultant tearing at one's hair.
+
+2) Speaking of ns-set consistency, if you add the CNAMEs to a zone and one of your nameservers
+is lagging behind the others in terms of getting the axfr in (perhaps it's busy, or notify is
+broken or something), Murphy's law dictates that the nameserver LetsEncrypt will end up getting
+an authoritative answer from is the one that's behind the curve.  Consider doing:
+
+```
+dig +nssearch example.org
+```
+to make sure everything's lined up with the new serial number before you proceed with the playbook.
+
+3) You have to actually do the delegation out of the parent zone with
+an NS record.  Merely putting the aforementioned configuration fragment
+for the delegated zone in the named.conf is *not sufficient*.  Based
+on text conversations I had this morning, I am not the only one who
+has forgotten periodically to do this, so it bears repeating.  In
+the parent zone, you need:
+
+```
+$ORIGIN example.org.
+acme	IN	NS	ns.example.org
+```
+
+
 
 Role Variables
 --------------
