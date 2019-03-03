@@ -14,7 +14,8 @@
 # just get a txt record, no ip address.  applications may include updating a bind view that
 # faces LetsEncrypt's nameservers for the purposes of genning up certs for internal devices.
 
-- local_action:
+- name: nsupdate A record for inventory_hostname_short
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
@@ -26,7 +27,8 @@
     value: "{{ ansible_host }}"
   when: ansible_host != "localhost" and ansible_v4host is not defined and ansible_v6host is not defined
 
-- local_action:
+- name: nsupdate A record for ansible_v4host (if defined in inventory)
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
@@ -38,7 +40,8 @@
     value: "{{ ansible_v4host }}"
   when: ansible_v4host is defined 
 
-- local_action:
+- name: nsupdate AAAA record for ansible_v4host (if defined in inventory)
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
@@ -50,19 +53,22 @@
     value: "{{ ansible_v6host }}"
   when: ansible_v6host is defined
 
-- local_action:
+- name: openssl private key (specific to this cert)
+  local_action:
     module: openssl_privatekey
     path: "{{ host_specific_files }}/crypto/server.key"
     type: RSA
     size: 2048
 
-- local_action:
+- name: account key for ACME (all hosts in this playbook)
+  local_action:
     module: openssl_privatekey
     path: "files/account.key"
     size:  4096
   run_once: true
 
-- local_action:
+- name: making a certificate signing request
+  local_action:
     module: openssl_csr
     email_address: "{{ cert_emailaddress }}"
     common_name: "{{ inventory_hostname }}"
@@ -70,7 +76,8 @@
     path: "{{ host_specific_files }}/crypto/server.csr"
     privatekey_path: "{{ host_specific_files }}/crypto/server.key" 
 
-- local_action:
+- name: getting a challenge from {{ which_ca }} to put in the DNS
+  local_action:
     module: acme_certificate
     account_key_src: "{{ inventory_dir }}/files/account.key"
     account_email: "{{ cert_emailaddress }}"
@@ -83,14 +90,15 @@
   register: dnschallenge
 
 
-- local_action:
-    module: debug
-    msg:  "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
+# - local_action:
+#     module: debug
+#    msg:  "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
 
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
-- local_action:
+- name: putting the challenge we got for CNs in the DNS
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
@@ -110,7 +118,8 @@
 # unfortunately unchanged subjectaltname list in the host_vars file is not idempotent; you'll
 # get a dns update message for each of them, but this should be harmless.
 
-- local_action:
+- name: putting challenges we got for any SubjectAltNames in the DNS
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
@@ -127,7 +136,8 @@
 
 
 
-- local_action:
+- name: asking {{ which_ca }} to sign our certs
+  local_action:
     module: acme_certificate
     account_key_src: "{{ inventory_dir }}/files/account.key"
     account_email: "{{ cert_emailaddress }}"
@@ -142,7 +152,8 @@
   when: "dnschallenge.changed == true"
 
 # clean up the mess
-- local_action:
+- name: getting rid of challenge TXT records for CNs
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
@@ -155,7 +166,8 @@
     state: absent
   when: "dnschallenge.changed == true"
 
-- local_action:
+- name: getting rid of challenge TXT records for SubjectAltNames
+  local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
