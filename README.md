@@ -138,7 +138,6 @@ total 33
 [root@ansible ~/workdir]# 
 ```
 
-
 License
 -------
 
