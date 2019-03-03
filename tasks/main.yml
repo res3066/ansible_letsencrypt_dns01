@@ -63,9 +63,11 @@
   local_action:
     module: openssl_privatekey
     path: "{{ host_specific_files }}/crypto/server.key"
+    passphrase: "{{ openssl_passphrase if openssl_passphrase is defined else omit }}"
+    cipher: "AES-256-CBC"
     type: RSA
     size: 2048
-  when: cert_key_stat.exists == False
+  when: cert_key_stat.stat.exists == False
 
 - name: check if account key exists
   local_action:
@@ -77,14 +79,20 @@
   local_action:
     module: openssl_privatekey
     path: "files/account.key"
+    passphrase: "{{ openssl_passphrase if openssl_passphrase is defined else omit }}"
+    cipher: "AES-256-CBC"
     size:  4096
   run_once: true
-  when: account_key_stat.exists == False
+  when: account_key_stat.stat.exists == False
 
+#- debug:
+#    var: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) }}"
+    
 - name: Make sure account exists and has given contacts. We agree to TOS.
   local_action:
     module: acme_account
-    account_key_src: "files/account.key"
+    account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
+    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     state: present
     terms_agreed: yes
     acme_directory: "https://{{ which_ca }}/directory"
@@ -101,11 +109,13 @@
     subject_alt_name: "{{ subjectaltname if subjectaltname is defined else omit }}"
     path: "{{ host_specific_files }}/crypto/server.csr"
     privatekey_path: "{{ host_specific_files }}/crypto/server.key" 
+    privatekey_passphrase: "{{ openssl_passphrase if openssl_passphrase is defined else omit }}"
 
 - name: getting a challenge from {{ which_ca }} to put in the DNS
   local_action:
     module: acme_certificate
-    account_key_src: "{{ inventory_dir }}/files/account.key"
+    account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
+    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
     src: "{{ host_specific_files }}/crypto/server.csr"
     cert: "{{ host_specific_files }}/crypto/server.crt"
@@ -166,7 +176,8 @@
 - name: asking {{ which_ca }} to sign our certs
   local_action:
     module: acme_certificate
-    account_key_src: "{{ inventory_dir }}/files/account.key"
+    account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
+    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
     src: "{{ host_specific_files }}/crypto/server.csr"
     cert: "{{ host_specific_files }}/crypto/server.crt"

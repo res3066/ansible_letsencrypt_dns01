@@ -79,6 +79,7 @@ an authoritative answer from is the one that's behind the curve.  Consider doing
 ```
 dig +nssearch example.org
 ```
+
 to make sure everything's lined up with the new serial number before you proceed with the playbook.
 
 3) You have to actually do the delegation out of the parent zone with
@@ -100,16 +101,16 @@ Role Variables
 
 This role will bomb out if you don't set a bunch of variables before starting.
 
-The usual ClueTrust methodology is to set default values in playbook_dir/group_vars/all.yml
+The usual ClueTrust methodology is to set default values in `inventory_dir/group_vars/all.yml`
 
-You can override them per host with files in playbook_dir/host_vars/inventory_hostname.yml
+You can override them per host with files in `inventory_dir/host_vars/inventory_hostname.yml`
 
 In addition to other variables, you should set these there:
 
 ```
 host_specific_files: "{{ inventory_dir }}/host_files/{{ inventory_hostname }}"
 
-which_ca: acme-staging.api.letsencrypt.org
+which_ca: acme-staging-v02.api.letsencrypt.org
 # which_ca: acme-v02.api.letsencrypt.org
 
 cert_emailaddress: sslcert@example.com
@@ -118,13 +119,11 @@ nsupdate_hmac: hmac-sha256
 nsupdate_key_name: vpn.example.com-20190205-00
 nsupdate_key_secret: base64-nsupdate-key-secret==
 nsupdate_server: ns.example.com
+
 ```
 
 Optional (but you probably want):
-
-```
-acmecnamezone: "acme.example.org"
-```
+	acmecnamezone: "acme.example.org"
 
 Note that while you can overwrite which nameserver you're talking to
 for which host in your ansible inventory (as well as the key secrets
@@ -133,11 +132,32 @@ individual hosts need to update domains that are hosted on more than
 one nameserver with more than one key was considered to be a bridge
 too far.  Sorry, this role doesn't do that.
 
+Optional (but you might find useful):
+	openssl_passphrase: super-secret
+
+If present, then created and used keys expect to be encrypted with that passphrase. 
+Note that this uses a lookup plugin (`ssl_key_text`) which is built into the role and
+decodes an openssl private key using the included passphrase if necessary.
+
+You may want to use this when uploading your key to your server (or you can just put
+the passphrase in a file if your server can use that).  To read get the key as
+unencrypted PEM format:
+
+```
+    - name: copy the key material to the appropriate location
+      copy: 
+        content: "{{ lookup('ssl_key_text', host_specific_files+'/crypto/server.key', passphrase=(openssl_passphrase if openssl_passphrase is defined else omit)) }}"
+        dest: "{{ crypto_dir }}/server.key"
+        mode: 0400
+        owner: www
+        group: www
+```
 
 Dependencies
 ------------
 
 None
+(If `ssl_key_text` is used, PyOpenSSL must be present)
 
 Example Playbook
 ----------------
