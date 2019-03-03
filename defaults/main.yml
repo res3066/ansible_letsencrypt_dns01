@@ -1,2 +1,3 @@
 ---
 # defaults file for letsencrypt-dns01
+cert_renew_days: 60

@@ -19,9 +19,8 @@ zones which you propose to host the servers in.
 The full manual of arms for accomplishing this is out of scope for this README,
 but here are a couple of links and a clue:
 
-https://technotes.seastrom.com/2014/11/06/genning-up-tsig-keys-for-dns-update-messages.html
-
-https://technotes.seastrom.com/2014/11/06/updating-zones-with-tsig-part-2.html
+- [Genning up tsig keys for dns update messages](https://technotes.seastrom.com/2014/11/06/genning-up-tsig-keys-for-dns-update-messages.html)
+- [Updating zones with tsig part 2](https://technotes.seastrom.com/2014/11/06/updating-zones-with-tsig-part-2.html)
 
 You're probably eventually going to want to wildcard a zone.  Try this
 in your named.conf (it's good practice to put generation dates in your
@@ -115,6 +114,10 @@ which_ca: acme-staging-v02.api.letsencrypt.org
 
 cert_emailaddress: sslcert@example.com
 
+subject_alt_names: 
+  - DNS:another.name.example.com
+  - DNS:third.name.example.com
+
 nsupdate_hmac: hmac-sha256
 nsupdate_key_name: vpn.example.com-20190205-00
 nsupdate_key_secret: base64-nsupdate-key-secret==
@@ -134,14 +137,25 @@ too far.  Sorry, this role doesn't do that.
 
 Optional (but you might find useful):
 	openssl_passphrase: super-secret
+	force_cert_renew: 'yes'
+	cert_renew_days: 30
 
-If present, then created and used keys expect to be encrypted with that passphrase. 
+If `openssl_passphrase` is present, then created and used keys expect to be encrypted
+with that passphrase. 
+
 Note that this uses a lookup plugin (`ssl_key_text`) which is built into the role and
 decodes an openssl private key using the included passphrase if necessary.
 
 You may want to use this when uploading your key to your server (or you can just put
 the passphrase in a file if your server can use that).  To read get the key as
 unencrypted PEM format:
+
+If `force_cert_renew` is set to `yes` it will force renewal of the certification, otherwise
+the renewal will go based on the `cert_renew_days` variable.
+
+`cert_renew_days` defaults to 60, thus we will renew your certificates if they're at least
+30 days old.
+
 
 ```
     - name: copy the key material to the appropriate location
