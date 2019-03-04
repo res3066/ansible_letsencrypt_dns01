@@ -161,7 +161,8 @@ individual hosts need to update domains that are hosted on more than
 one nameserver with more than one key was considered to be a bridge
 too far.  Sorry, this role doesn't do that.
 
-Optional, but you might find useful (in all.yml, inventory_hostname.yml, or passed in via extra_vars on the command line):
+Optional, but you might find useful (in `all.yml`, `inventory_hostname.yml`, or
+passed in via extra\_vars on the command line):
 ```
 force_cert_renew: 'yes'
 cert_renew_days: 30
@@ -230,7 +231,7 @@ Including an example of how to use your role (for instance, with variables passe
 
 Once you've successfully run this role, you will be rewarded with a series of files
 (with traditional-ish names) in
-play_dir/host_files/hostname.vpn.example.org/crypto/
+`play_dir/host_files/hostname.vpn.example.org/crypto/`
 
 ```
 [root@ansible ~/workdir]# ls -l host_files/hostname.vpn.example.org/crypto/
