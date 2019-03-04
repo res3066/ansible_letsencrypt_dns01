@@ -42,7 +42,7 @@ and dynamically updated zones is a recipe for annoyance if not tears.
 What to do?  It turns out that ACME will in fact follow a CNAME, even
 to a non-child, non-same-origin (I'm tempted to say "out of baliwick"
 but the DNS pedants will call me out on subtly incorrect use) zone
-without even abusing the Public Suffix List (cough) which came to me
+without even abusing the [Public Suffix List](https://publicsuffix.org) (cough) which came to me
 as a complete surprise to me since I figured such behavior would
 constitute an attack surface.
 
@@ -93,6 +93,23 @@ $ORIGIN example.org.
 acme	IN	NS	ns.example.org
 ```
 
+4) If you're using this role at scale, it's probably far easier than
+you think to run afoul of LetsEncrypt's [production rate
+limits](https://letsencrypt.org/docs/rate-limits/), which you should
+read and understand before you try running this role with more than a
+couple of dozen hosts in the inventory.  You might think that testing
+against LetsEncrypt's [staging
+environment](https://letsencrypt.org/docs/staging-environment/) would
+be a good way to avoid this, but if you read the docs carefully you'll
+see "The staging environment uses the same rate limits as described
+for the production environment with the following exceptions"... and
+then they go on to enumerate all the ones that you will care about
+running afoul of it in real life.  The take-away here is that LE's
+"staging environment" is actually a "dev" environment.  Once
+you've got things fairly together, if you have doubts you need
+to go through an "OT&E" phase with a domain that will not be "hurt"
+if you run afoul of the production rate limits.  You have been warned.
+
 
 
 Role Variables
@@ -102,9 +119,7 @@ This role will bomb out if you don't set a bunch of variables before starting.
 
 The usual ClueTrust methodology is to set default values in `inventory_dir/group_vars/all.yml`
 
-You can override them per host with files in `inventory_dir/host_vars/inventory_hostname.yml`
-
-In addition to other variables, you should set these there:
+You'll probably want these there:
 
 ```
 host_specific_files: "{{ inventory_dir }}/host_files/{{ inventory_hostname }}"
@@ -114,19 +129,30 @@ which_ca: acme-staging-v02.api.letsencrypt.org
 
 cert_emailaddress: sslcert@example.com
 
-subject_alt_names: 
-  - DNS:another.name.example.com
-  - DNS:third.name.example.com
-
 nsupdate_hmac: hmac-sha256
 nsupdate_key_name: vpn.example.com-20190205-00
 nsupdate_key_secret: base64-nsupdate-key-secret==
 nsupdate_server: ns.example.com
 
 ```
-
 Optional (but you probably want):
-	acmecnamezone: "acme.example.org"
+```
+acmecnamezone: "acme.example.org"
+```
+
+
+Note that you can override them per host with files in `inventory_dir/host_vars/inventory_hostname.yml`
+
+In addition to other variables, if you want SANs you should set these
+there as they would (probably) not make sense in
+`inventory_dir/group_vars/all.yml`:
+
+```
+subject_alt_names: 
+  - DNS:another.name.example.com
+  - DNS:third.name.example.com
+
+```
 
 Note that while you can overwrite which nameserver you're talking to
 for which host in your ansible inventory (as well as the key secrets
@@ -135,26 +161,41 @@ individual hosts need to update domains that are hosted on more than
 one nameserver with more than one key was considered to be a bridge
 too far.  Sorry, this role doesn't do that.
 
-Optional (but you might find useful):
-	openssl_passphrase: super-secret
-	force_cert_renew: 'yes'
-	cert_renew_days: 30
-
-If `openssl_passphrase` is present, then created and used keys expect to be encrypted
-with that passphrase. 
-
-Note that this uses a lookup plugin (`ssl_key_text`) which is built into the role and
-decodes an openssl private key using the included passphrase if necessary.
-
-You may want to use this when uploading your key to your server (or you can just put
-the passphrase in a file if your server can use that).  To read get the key as
-unencrypted PEM format:
+Optional, but you might find useful (in all.yml, inventory_hostname.yml, or passed in via extra_vars on the command line):
+```
+force_cert_renew: 'yes'
+cert_renew_days: 30
+```
 
 If `force_cert_renew` is set to `yes` it will force renewal of the certification, otherwise
 the renewal will go based on the `cert_renew_days` variable.
 
 `cert_renew_days` defaults to 60, thus we will renew your certificates if they're at least
 30 days old.
+
+
+
+Encrypting your crypto material
+-------------------------------
+
+Because reasons, the openssl module and Ansible Vault don't get along, so if you wish
+to keep your crypto material encrypted, you'll have to fall back on a little bit of
+included glue that uses the built-in crypto features of OpenSSL.
+
+Variable to do this crypto (Optional, but you might find useful):
+```
+openssl_passphrase: super-secret
+```
+
+If `openssl_passphrase` is present, then created and used keys (account key, .key files) expect to be encrypted
+with that passphrase. 
+
+Note that this uses a lookup plugin (`ssl_key_text`) which is built into this role and
+decodes an openssl private key using the included passphrase if necessary.
+
+You may want to use this when uploading your key to your server (or you can just put
+the passphrase in a file if your server can use that).  To read get the key as
+unencrypted PEM format:
 
 
 ```
@@ -187,7 +228,7 @@ Including an example of how to use your role (for instance, with variables passe
 
 ```
 
-Once you've run this role, you will be rewarded with a series of files
+Once you've successfully run this role, you will be rewarded with a series of files
 (with traditional-ish names) in
 play_dir/host_files/hostname.vpn.example.org/crypto/
 
