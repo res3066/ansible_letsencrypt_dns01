@@ -64,7 +64,7 @@
     module: openssl_privatekey
     path: "{{ host_specific_files }}/crypto/server.key"
     passphrase: "{{ openssl_passphrase | default(omit) }}"
-    cipher: "AES-256-CBC"
+    cipher: "{{ 'AES-256-CBC' if openssl_passphrase is defined else omit }}"
     type: RSA
     size: 2048
   when: cert_key_stat.stat.exists == False
@@ -92,7 +92,7 @@
   local_action:
     module: acme_account
     account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
-    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) | default(omit) }}"
+    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     state: present
     terms_agreed: yes
     acme_directory: "https://{{ which_ca }}/directory"
@@ -115,7 +115,7 @@
   local_action:
     module: acme_certificate
     account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
-    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) | default(omit) }}"
+    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
     src: "{{ host_specific_files }}/crypto/server.csr"
     cert: "{{ host_specific_files }}/crypto/server.crt"
@@ -178,7 +178,7 @@
   local_action:
     module: acme_certificate
     account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
-    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) | default(omit) }}"
+    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
     src: "{{ host_specific_files }}/crypto/server.csr"
     cert: "{{ host_specific_files }}/crypto/server.crt"
