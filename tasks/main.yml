@@ -69,13 +69,13 @@
     size: 2048
   when: cert_key_stat.stat.exists == False
 
-- name: check if account key exists
+- name: check if master playbook account key exists
   local_action:
     module: stat
     path: "files/account.key"
   register: account_key_stat
   
-- name: account key for ACME (all hosts in this playbook)
+- name: create master playbook ACME account key if not already existing
   local_action:
     module: openssl_privatekey
     path: "files/account.key"
@@ -84,6 +84,18 @@
     size:  4096
   run_once: true
   when: account_key_stat.stat.exists == False
+
+- name: looking for per-host override to account.key
+  local_action:
+    module: set_fact
+    acme_account_key: "{{ lookup('first_found', acme_keypath)}}"
+  vars:
+    acme_keypath:
+      - "{{ host_specific_files }}/crypto/account.key"
+      - "files/account.key"
+
+- debug:
+    var: acme_account_key
 
 #- debug:
 #    var: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) }}"
