@@ -88,23 +88,23 @@
 - name: looking for per-host override to account.key
   local_action:
     module: set_fact
-    acme_account_key: "{{ lookup('first_found', acme_keypath)}}"
+    acme_account_key_file: "{{ lookup('first_found', acme_keypath)}}"
   vars:
     acme_keypath:
       - "{{ host_specific_files }}/crypto/account.key"
       - "files/account.key"
 
 - debug:
-    var: acme_account_key
+    var: acme_account_key_file
 
 #- debug:
-#    var: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) }}"
+#    var: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) }}"
     
 - name: Make sure account exists and has given contacts. We agree to TOS.
   local_action:
     module: acme_account
-    account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
-    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
+    account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
+    account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     state: present
     terms_agreed: yes
     acme_directory: "https://{{ which_ca }}/directory"
@@ -126,8 +126,8 @@
 - name: getting a challenge from {{ which_ca }} to put in the DNS
   local_action:
     module: acme_certificate
-    account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
-    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
+    account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
+    account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
     src: "{{ host_specific_files }}/crypto/server.csr"
     cert: "{{ host_specific_files }}/crypto/server.crt"
@@ -139,10 +139,6 @@
     remaining_days: "{{ cert_renew_days }}"
   register: dnschallenge
 
-
-# - local_action:
-#     module: debug
-#    msg:  "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
 
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
@@ -161,10 +157,6 @@
   when: "dnschallenge.changed == true"
 
 
-# - local_action:
-#        module: debug
-#        var: dnschallenge
-
 # unfortunately unchanged subjectaltname list in the host_vars file is not idempotent; you'll
 # get a dns update message for each of them, but this should be harmless.
 
@@ -175,22 +167,18 @@
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
-#    zone: "{{ item.split('.', 1)[1] }}"
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
-#     record: "_acme-challenge.{{ item.split(':', 1)[1].split('.')[0] }}"
     record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
     value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
   with_items: "{{ subject_alt_names }}"
   when: dnschallenge.changed == true and subject_alt_names is defined
 
-
-
 - name: asking {{ which_ca }} to sign our certs
   local_action:
     module: acme_certificate
-    account_key_src: "{{ omit if openssl_passphrase is defined else 'files/account.key' }}"
-    account_key_content: "{{ lookup('ssl_key_text', 'files/account.key', passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
+    account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
+    account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
     src: "{{ host_specific_files }}/crypto/server.csr"
     cert: "{{ host_specific_files }}/crypto/server.crt"
