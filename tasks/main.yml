@@ -3,12 +3,17 @@
 
 - local_action: file name="{{ host_specific_files }}/crypto" state=directory mode=0700 recurse=yes
 
+# If your goal is to do flat dns update for all records, 
 # the host addresses should go in the inventory file; since we are updating dns and not
 # gathering facts, the source of truth is the inventory file
 #
-# the "approved" way to set these is ansible_v4host and ansible_v6host (which belong to us) not
+# A somewhat cleaner way to implement this is to set these is ansible_v4host and ansible_v6host (which belong to us) not
 # ansible_host which belongs to ansible - probably ought to reevaluate the namespace here.
 # nevertheless, if only ansible_host is set, we'll try to run with it.
+#
+# ^^^ THIS BEHAVIOR WILL LIKELY GO AWAY OR AT LEAST BE DEPRECATED-AS-DEFAULT, SEE
+# README.md for discussion of the {{ acmecnamezone }} variable and why it is a
+# good workflow
 #
 # it is fine, btw, to have hosts with no A or AAAA records for them at all.  these hosts will
 # just get a txt record, no ip address.  applications may include updating a bind view that
@@ -94,8 +99,8 @@
       - "{{ host_specific_files }}/crypto/account.key"
       - "files/account.key"
 
-- debug:
-    var: acme_account_key_file
+#- debug:
+#    var: acme_account_key_file
 
 #- debug:
 #    var: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) }}"
