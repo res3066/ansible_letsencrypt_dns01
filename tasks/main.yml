@@ -127,6 +127,7 @@
     path: "{{ host_specific_files }}/crypto/server.csr"
     privatekey_path: "{{ host_specific_files }}/crypto/server.key" 
     privatekey_passphrase: "{{ openssl_passphrase | default(omit) }}"
+  register: csrresults
 
 - name: getting a challenge from {{ which_ca }} to put in the DNS
   local_action:
@@ -139,8 +140,9 @@
     challenge: dns-01
     acme_directory: "https://{{ which_ca }}/directory"
     acme_version: 2
-    # Renew if the certificate is at least 30 days old
-    force: "{{ force_cert_renew | default(false) }}"
+    # Renew if force_cert_renew variable set OR if the CSR changed
+    force: "{{ force_cert_renew | default( (csrresults['changed'] == true) | ternary('yes','no') ) }}"
+    # Renew if the certificate has less than N days left on it (best practice says default probably 30)
     remaining_days: "{{ cert_renew_days }}"
   register: dnschallenge
 
