@@ -3,60 +3,21 @@
 
 - local_action: file name="{{ host_specific_files }}/crypto" state=directory mode=0700 recurse=yes
 
-# If your goal is to do flat dns update for all records, 
-# the host addresses should go in the inventory file; since we are updating dns and not
-# gathering facts, the source of truth is the inventory file
-#
-# A somewhat cleaner way to implement this is to set these is ansible_v4host and ansible_v6host (which belong to us) not
-# ansible_host which belongs to ansible - probably ought to reevaluate the namespace here.
-# nevertheless, if only ansible_host is set, we'll try to run with it.
-#
-# ^^^ THIS BEHAVIOR WILL LIKELY GO AWAY OR AT LEAST BE DEPRECATED-AS-DEFAULT, SEE
-# README.md for discussion of the {{ acmecnamezone }} variable and why it is a
+# SEE README.md for discussion of the {{ acmecnamezone }} variable and why it is a
 # good workflow
 #
 # it is fine, btw, to have hosts with no A or AAAA records for them at all.  these hosts will
 # just get a txt record, no ip address.  applications may include updating a bind view that
 # faces LetsEncrypt's nameservers for the purposes of genning up certs for internal devices.
 
-- name: nsupdate A record for inventory_hostname_short
-  local_action:
-    module: nsupdate
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
-    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
-    record: "{{ inventory_hostname_short }}"
-    type: A
-    value: "{{ ansible_host }}"
-  when: ansible_host != "localhost" and ansible_v4host is not defined and ansible_v6host is not defined
+- name: Check for existance of the CNAME if using acmecnamezone
+  fail: msg="can't find CNAME for _acme-challenge.{{cert_hostname}}"
+  when: acmecnamezone is defined and lookup('dig', '_acme-challenge.'+cert_hostname, 'qtype=CNAME')=="NXDOMAIN"
 
-- name: nsupdate A record for ansible_v4host (if defined in inventory)
-  local_action:
-    module: nsupdate
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
-    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
-    record: "{{ inventory_hostname_short }}"
-    type: A
-    value: "{{ ansible_v4host }}"
-  when: ansible_v4host is defined 
-
-- name: nsupdate AAAA record for ansible_v4host (if defined in inventory)
-  local_action:
-    module: nsupdate
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
-    zone: "{{ inventory_hostname.split('.', 1)[1] }}"
-    record: "{{ inventory_hostname_short }}"
-    type: AAAA
-    value: "{{ ansible_v6host }}"
-  when: ansible_v6host is defined
+- name: Check for existance of the CNAME if using acmecnamezone and SAN
+  fail: msg="can't find CNAME for _acme-challenge.{{item.split(':', 1)[1]}}"
+  when: subject_alt_names is defined and acmecnamezone is defined and lookup('dig', '_acme-challenge.'+item.split(':', 1)[1], 'qtype=CNAME')=="NXDOMAIN"
+  with_items: "{{ subject_alt_names }}"
 
 - name: check if cert key exists
   local_action:
@@ -122,7 +83,7 @@
   local_action:
     module: openssl_csr
     email_address: "{{ cert_emailaddress }}"
-    common_name: "{{ inventory_hostname }}"
+    common_name: "{{ cert_hostname }}"
     subject_alt_name: "{{ subject_alt_names | default(omit) }}"
     path: "{{ host_specific_files }}/crypto/server.csr"
     privatekey_path: "{{ host_specific_files }}/crypto/server.key" 
@@ -157,10 +118,10 @@
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
-    zone: "{{ acmecnamezone | default(inventory_hostname.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
+    zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ cert_hostname if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
-    value: "{{ dnschallenge.challenge_data.get(inventory_hostname)['dns-01'].resource_value }}"
+    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
   when: "dnschallenge.changed == true"
 
 
@@ -207,10 +168,10 @@
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
-    zone: "{{ acmecnamezone | default(inventory_hostname.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ inventory_hostname if acmecnamezone is defined else inventory_hostname_short }}"
+    zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ cert_hostname if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
-    value: "{{ dnschallenge.challenge_data.get(inventory_hostname)['dns-01'].resource_value }}"
+    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
     state: absent
   when: "dnschallenge.changed == true"
 

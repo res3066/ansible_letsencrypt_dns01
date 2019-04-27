@@ -1,3 +1,5 @@
 ---
 # defaults file for letsencrypt-dns01
 cert_renew_days: 60
+cert_hostname: "{{ inventory_hostname }}"
+cert_hostname_short: "{{ inventory_hostname_short }}"

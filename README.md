@@ -140,7 +140,6 @@ Optional (but you probably want):
 acmecnamezone: "acme.example.org"
 ```
 
-
 Note that you can override them per host with files in `inventory_dir/host_vars/inventory_hostname.yml`
 
 In addition to other variables, if you want SANs you should set these
@@ -174,6 +173,10 @@ the renewal will go based on the `cert_renew_days` variable.
 `cert_renew_days` defaults to 60, thus we will renew your certificates if they're at least
 30 days old.
 
+To override hostname behavior, you'll want to set:
+`cert_hostname` and `cert_hostname_short`, which are by default set to
+`inventory_hostname` and `inventory_hostname_short`, but it might be useful to set these
+if you're doing SNI on a server which has multiple sites on it.
 
 
 Encrypting your crypto material
