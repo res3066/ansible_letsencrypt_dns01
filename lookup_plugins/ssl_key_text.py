@@ -4,20 +4,20 @@ __metaclass__ = type
 
 DOCUMENTATION = """
       lookup: ssl_key_text
-        author: Gaige B. Paulsen <gaige@cluetrust.com>
-        version_added: "0.9"
-        short_description: read ssl key file contents
-        description:
-            - returns the contents of the an encrypted ssl key file
-        options:
-          _terms:
-            description: path(s) of files to read
-            required: True
-          passphrase:
-            description: passphrase to decrypt the key file with
-        notes:
-          - if read in variable context, the file can be interpreted as YAML if the content is valid to the parser.
-          - this lookup does not understand globing --- use the fileglob lookup instead.
+      author: Gaige B. Paulsen <gaige@cluetrust.com>
+      version_added: "2.7"
+      short_description: read ssl key file contents
+      description:
+          - returns the contents of the an encrypted ssl key file
+      options:
+        _terms:
+          description: path(s) of files to read
+          required: True
+        passphrase:
+          description: passphrase to decrypt the key file with
+        required: True
+      notes:
+        - this lookup does not understand globing --- use the fileglob lookup instead.
 """
 
 EXAMPLES = """
