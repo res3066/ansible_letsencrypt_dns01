@@ -1,7 +1,7 @@
-Role Name
+letsencrypt-dns01
 =========
 
-letsencrypt-dns01 - create some SSL certs using the ACME dns-01 method
+Create some SSL certs using the ACME dns-01 method
 
 Requirements
 ------------
