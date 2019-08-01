@@ -108,10 +108,47 @@
   register: dnschallenge
 
 
+# Preemptively getting rid of any existing TXT records.
+# Note that you can not do an update if a record of RRTYPE exists at said node.
+# Important for when you're debugging something that blew up in the past and left
+# cruft in the DNS - you'll be wondering why you can't catch a break...
+
+- name: ensuring no existing TXT records for CN
+  local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ cert_hostname if acmecnamezone is defined else cert_hostname_short }}"
+    type: TXT
+#    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
+    value: "anything"
+    state: absent
+  when: "dnschallenge.changed == true"
+
+- name: ensuring no existing TXT records for SubjectAltNames
+  local_action:
+    module: nsupdate
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
+    type: TXT
+#    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
+    value: "anything"
+    state: absent
+  with_items: "{{ subject_alt_names }}"
+  when: dnschallenge.changed == true and subject_alt_names is defined
+
+
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
-- name: putting the challenge we got for CNs in the DNS
+- name: putting the challenge we got for the CN in the DNS
   local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
@@ -173,7 +210,8 @@
     zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ cert_hostname if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
-    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
+#    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
+    value: "anything"
     state: absent
   when: "dnschallenge.changed == true"
 
@@ -187,7 +225,8 @@
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
-    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
+#    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
+    value: "anything"
     state: absent
   with_items: "{{ subject_alt_names }}"
   when: dnschallenge.changed == true and subject_alt_names is defined
