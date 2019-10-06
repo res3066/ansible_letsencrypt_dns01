@@ -110,7 +110,13 @@ you've got things fairly together, if you have doubts you need
 to go through an "OT&E" phase with a domain that will not be "hurt"
 if you run afoul of the production rate limits.  You have been warned.
 
-
+5) Using acmecnamezone has turned out to be very pleasant, to the point
+that neither G nor R are doing in-zone direct updates.  We added support
+for wildcard certs and since setting up a test harness was too much of a
+pain, we didn't bother adding support for them under non-acmenamezone
+conditions.  If you're thinking "that sounds as if running without
+acmezonename is deprecated and support for that configuration may
+go away soon", you're probably onto something.
 
 Role Variables
 --------------
@@ -150,6 +156,7 @@ there as they would (probably) not make sense in
 subject_alt_names: 
   - DNS:another.name.example.com
   - DNS:third.name.example.com
+  - DNS:*.example.net
 
 ```
 

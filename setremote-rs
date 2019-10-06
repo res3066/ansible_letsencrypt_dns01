@@ -1,6 +1,0 @@
-#!/bin/sh
-
-git remote set-url --add --push origin git@git.seastrom.com:ansibleroles/letsencrypt-dns01
-git remote set-url --add --push origin git@dagobah.cluetrust.com:rs/letsencrypt-dns01
-
-
