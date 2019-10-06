@@ -11,12 +11,12 @@
 # faces LetsEncrypt's nameservers for the purposes of genning up certs for internal devices.
 
 - name: Check for existance of the CNAME if using acmecnamezone
-  fail: msg="can't find CNAME for _acme-challenge.{{cert_hostname}}"
-  when: acmecnamezone is defined and lookup('dig', '_acme-challenge.'+cert_hostname, 'qtype=CNAME')=="NXDOMAIN"
+  fail: msg="can't find CNAME for _acme-challenge.{{ cert_hostname | replace('*.','') }}"
+  when: acmecnamezone is defined and lookup('dig', '_acme-challenge.' + cert_hostname | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
 
 - name: Check for existance of the CNAME if using acmecnamezone and SAN
-  fail: msg="can't find CNAME for _acme-challenge.{{item.split(':', 1)[1]}}"
-  when: subject_alt_names is defined and acmecnamezone is defined and lookup('dig', '_acme-challenge.'+item.split(':', 1)[1], 'qtype=CNAME')=="NXDOMAIN"
+  fail: msg="can't find CNAME for _acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') }}"
+  when: subject_alt_names is defined and acmecnamezone is defined and lookup('dig', '_acme-challenge.'+ item.split(':', 1)[1] | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
   with_items: "{{ subject_alt_names }}"
 
 - name: check if cert key exists
@@ -59,6 +59,7 @@
     acme_keypath:
       - "{{ host_specific_files }}/crypto/account.key"
       - "files/account.key"
+
 
 #- debug:
 #    var: acme_account_key_file
@@ -121,7 +122,7 @@
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
     zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ cert_hostname if acmecnamezone is defined else cert_hostname_short }}"
+    record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
 #    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
     value: "anything"
@@ -136,7 +137,7 @@
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
 #    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
     value: "anything"
@@ -156,7 +157,7 @@
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
     zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ cert_hostname if acmecnamezone is defined else cert_hostname_short }}"
+    record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
     ttl: 60
     value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
@@ -174,7 +175,7 @@
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
     ttl: 60
     value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
@@ -223,7 +224,7 @@
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ item.split(':', 1)[1] if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
 #    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
     value: "anything"
