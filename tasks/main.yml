@@ -46,7 +46,7 @@
     module: openssl_privatekey
     path: "files/account.key"
     passphrase: "{{ openssl_passphrase | default(omit) }}"
-    cipher: "AES-256-CBC"
+    cipher: "{{ 'AES-256-CBC' if openssl_passphrase is defined else omit }}"
     size:  4096
   run_once: true
   when: account_key_stat.stat.exists == False
