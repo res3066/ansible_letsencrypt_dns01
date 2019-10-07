@@ -10,11 +10,11 @@
 # just get a txt record, no ip address.  applications may include updating a bind view that
 # faces LetsEncrypt's nameservers for the purposes of genning up certs for internal devices.
 
-- name: Check for existance of the CNAME if using acmecnamezone
+- name: Check for existance of the CNAME if using acmecnamezone (expect skip when healthy!)
   fail: msg="can't find CNAME for _acme-challenge.{{ cert_hostname | replace('*.','') }}"
   when: acmecnamezone is defined and lookup('dig', '_acme-challenge.' + cert_hostname | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
 
-- name: Check for existance of the CNAME if using acmecnamezone and SAN
+- name: Check for existance of the CNAME if using acmecnamezone and SAN (expect skip when healthy!)
   fail: msg="can't find CNAME for _acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') }}"
   when: subject_alt_names is defined and acmecnamezone is defined and lookup('dig', '_acme-challenge.'+ item.split(':', 1)[1] | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
   with_items: "{{ subject_alt_names }}"
