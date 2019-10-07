@@ -118,6 +118,14 @@ conditions.  If you're thinking "that sounds as if running without
 acmezonename is deprecated and support for that configuration may
 go away soon", you're probably onto something.
 
+6) While changes to the CSR will force a certificate reissue, changing
+the API endpoint will not.  R implemented code to do this and was ready
+to merge it in until G pointed out, correctly, that I (being the primary developer)
+was the only one who flipped back and forth a lot.  So the code to make
+that happen isn't here.  If you want to force the certs to renew,
+--extra-vars "force_cert_renew=true" on the command line (or set the
+variable somewhere else) is your friend.
+
 Role Variables
 --------------
 
