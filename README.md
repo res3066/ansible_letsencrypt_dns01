@@ -8,34 +8,14 @@ Requirements
 
 ACME in general is a challenge-response protocol - you talk to the
 servers with an CSR in hand and they give you a challenge string (not
-actually a nonce, since it gets reused) to put somewhere.
+actually a nonce, since it gets reused) to put somewhere to prove
+you control the zone (DNS-01) or the web server (HTTP-01).
 
 In the case of DNS-01, you put it in the DNS, in the form of a TXT
 record, generally alongside the A or AAAA record for the particular
 host which you're genning up the certs for.  Therefore, you need a DNS
 server which will accept TSIG-signed UPDATE messages for the various
 zones which you propose to host the servers in.
-
-The full manual of arms for accomplishing this is out of scope for this README,
-but here are a couple of links and a clue:
-
-- [Genning up tsig keys for dns update messages](https://technotes.seastrom.com/2014/11/06/genning-up-tsig-keys-for-dns-update-messages.html)
-- [Updating zones with tsig part 2](https://technotes.seastrom.com/2014/11/06/updating-zones-with-tsig-part-2.html)
-
-You're probably eventually going to want to wildcard a zone.  Try this
-in your named.conf (it's good practice to put generation dates in your
-tsig key name):
-
-```
-zone "vpn.example.com" {
-        type master ;
-        file "master/rs/vpn.example.com-dynamic" ;
-        update-policy {
-                grant "vpn.example.com-20190205-00" wildcard *.vpn.example.com A AAAA TXT ;
-
-        } ;
-} ;
-```
 
 Mixing manually updated zones (especially hand edited zone files)
 and dynamically updated zones is a recipe for annoyance if not tears.
@@ -46,29 +26,63 @@ without even abusing the [Public Suffix List](https://publicsuffix.org) (cough) 
 as a complete surprise to me since I figured such behavior would
 constitute an attack surface.
 
-The solution is to designate a zone where you're going to put all of your acme challenge
-responses in that zone and CNAME into it for the _acme-challenge records for all your hosts.
+At ClueTrust, we've had really good experiences with designating a
+zone where all of our acme challenges go and CNAME into it for the
+_acme-challenge records for all our hosts.
 
 Example:
 
 ```
-$ORIGIN example.org
+$ORIGIN example.org.
 demo           IN      A	192.0.2.33
 _acme-challenge.demo   IN      CNAME   _acme-challenge.demo.example.com.acme.example.com.
 ```
 
-Note the ORIGIN of example.org and the CNAME pointing to acme.example.com, with the FQDN of
+Note the ORIGIN of example.org and the CNAME pointing to into acme.example.com, with the FQDN of
 the record being prepended to the dynamic update zone (which need only be updateable for TXT since
 that's all you're ever going to put in it).
 
-To support this behavior, set the "acmecnamezone" variable in some appropriate place.
+To support this behavior, set the "acmecnamezone" variable in some appropriate place (in the case above,
+acmezonename would be set to acme.example.com).
+
+
+The full manual of arms for accomplishing TSIG-signed updates for a zone is out of scope for this README,
+but here are a couple of links and a clue:
+
+- [Genning up tsig keys for dns update messages](https://technotes.seastrom.com/2014/11/06/genning-up-tsig-keys-for-dns-update-messages.html)
+- [Updating zones with tsig part 2](https://technotes.seastrom.com/2014/11/06/updating-zones-with-tsig-part-2.html)
+
+The wildcarded "acmezonename" zone will look something like this (we need to put in only TXT records, but for arbitrary names):
+
+
+```
+zone "acme.example.com" {
+        type master ;
+        file "master/rs/acme.example.com-dynamic" ;
+        update-policy {
+                grant "acme.example.com-20190205-00" wildcard *.acme.example.com TXT ;
+
+        } ;
+} ;
+```
+
+and the delegation in the top level of example.com will look something
+like this (yes, you have to delegate even if it's being served by the
+same nameserver):
+
+```
+$ORIGIN example.com.
+acme	IN	NS	ns1.example.com.
+```
+
+
 
 CAVEATS:
 
 1) When you set up your wildcard zone for dynamic updates, reliability is not a criterion.  Velocity
 of entire NS-set being on the same page, however, is - you'll be doing an update and then expecting
 consistency within a very small number of seconds.  As a result, delegating it to only a single
-nameserver will help avoid any transient failures and resultant tearing at one's hair.
+nameserver (the same nameserver that you send the updates to) will help avoid any transient failures and resultant tearing at one's hair.
 
 2) Speaking of ns-set consistency, if you add the CNAMEs to a zone and one of your nameservers
 is lagging behind the others in terms of getting the axfr in (perhaps it's busy, or notify is
@@ -120,7 +134,7 @@ go away soon", you're probably onto something.
 
 6) While changes to the CSR will force a certificate reissue, changing
 the API endpoint will not.  R implemented code to do this and was ready
-to merge it in until G pointed out, correctly, that I (being the primary developer)
+to merge it in until G pointed out, correctly, that R (being the primary developer)
 was the only one who flipped back and forth a lot.  So the code to make
 that happen isn't here.  If you want to force the certs to renew,
 --extra-vars "force_cert_renew=true" on the command line (or set the
@@ -144,7 +158,7 @@ which_ca: acme-staging-v02.api.letsencrypt.org
 cert_emailaddress: sslcert@example.com
 
 nsupdate_hmac: hmac-sha256
-nsupdate_key_name: vpn.example.com-20190205-00
+nsupdate_key_name: acme.example.com-20190205-00
 nsupdate_key_secret: base64-nsupdate-key-secret==
 nsupdate_server: ns.example.com
 
