@@ -35,7 +35,7 @@ Example:
 ```
 $ORIGIN example.org.
 demo           IN      A	192.0.2.33
-_acme-challenge.demo   IN      CNAME   _acme-challenge.demo.example.com.acme.example.com.
+_acme-challenge.demo   IN      CNAME   _acme-challenge.demo.example.org.acme.example.com.
 ```
 
 Note the ORIGIN of example.org and the CNAME pointing to into acme.example.com, with the FQDN of
