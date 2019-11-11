@@ -160,38 +160,21 @@
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
-- name: putting the challenge we got for the CN in the DNS
+- name: putting the challenges we got for all domains into the DNS
   local_action:
     module: nsupdate
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
-    zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
+    zone: "{{ acmecnamezone | default(item.key.split('.', 1)[1]) }}"
+    record: "{{ item.value['dns-01']['record'] }}"
     type: TXT
     ttl: 60
-    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
+    value: "{{ item.value['dns-01']['resource_value'] }}"
+  with_dict: "{{ dnschallenge.challenge_data }}"
   when: "dnschallenge.changed == true"
 
-
-# unfortunately unchanged subjectaltname list in the host_vars file is not idempotent; you'll
-# get a dns update message for each of them, but this should be harmless.
-
-- name: putting challenges we got for any SubjectAltNames in the DNS
-  local_action:
-    module: nsupdate
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
-    zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
-    type: TXT
-    ttl: 60
-    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
-  with_items: "{{ subject_alt_names }}"
-  when: dnschallenge.changed == true and subject_alt_names is defined
 
 - name: asking {{ which_ca }} to sign our certs
   local_action:
