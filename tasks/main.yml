@@ -168,11 +168,11 @@
     key_secret: "{{ nsupdate_key_secret }}"
     server: "{{ nsupdate_server }}"
     zone: "{{ acmecnamezone | default(item.key.split('.', 1)[1]) }}"
-    record: "{{ item.value['dns-01']['record'] }}"
+    record: "{{ item.key }}"
     type: TXT
     ttl: 60
-    value: "{{ item.value['dns-01']['resource_value'] }}"
-  with_dict: "{{ dnschallenge.challenge_data }}"
+    value: "{{ item.value }}"
+  with_dict: "{{ dnschallenge.challenge_data_dns }}"
   when: "dnschallenge.changed == true"
 
 
