@@ -1,7 +1,13 @@
 ---
 # tasks file for letsencrypt-dns01    
 
-- local_action: file name="{{ host_specific_files }}/crypto" state=directory mode=0700 recurse=yes
+- name: Making sure crypto subdirectory is present
+  file:
+    name: "{{ host_specific_files }}/crypto"
+    state: directory
+    mode: 0700
+    recurse: yes
+  delegate_to: localhost
 
 # SEE README.md for discussion of the {{ acmecnamezone }} variable and why it is a
 # good workflow
@@ -20,41 +26,41 @@
   with_items: "{{ subject_alt_names }}"
 
 - name: check if cert key exists
-  local_action:
-    module: stat
+  stat:
     path: "{{ host_specific_files }}/crypto/server.key"
+  delegate_to: localhost
   register: cert_key_stat
-  
+
 - name: openssl private key (specific to this cert)
-  local_action:
-    module: openssl_privatekey
+  openssl_privatekey:
     path: "{{ host_specific_files }}/crypto/server.key"
     passphrase: "{{ openssl_passphrase | default(omit) }}"
     cipher: "{{ 'AES-256-CBC' if openssl_passphrase is defined else omit }}"
     type: RSA
     size: 2048
-  when: cert_key_stat.stat.exists == False
+  delegate_to: localhost
+  when: not cert_key_stat.stat.exists
 
 - name: check if master playbook account key exists
-  local_action:
-    module: stat
+  stat:
     path: "files/account.key"
+  delegate_to: localhost
   register: account_key_stat
-  
+
 - name: create master playbook ACME account key if not already existing
-  local_action:
-    module: openssl_privatekey
+  openssl_privatekey:
     path: "files/account.key"
     passphrase: "{{ openssl_passphrase | default(omit) }}"
     cipher: "{{ 'AES-256-CBC' if openssl_passphrase is defined else omit }}"
     size:  4096
+  delegate_to: localhost
   run_once: true
-  when: account_key_stat.stat.exists == False
+  when: not account_key_stat.stat.exists
 
 - name: looking for per-host override to account.key
-  local_action:
-    module: set_fact
-    acme_account_key_file: "{{ lookup('first_found', acme_keypath)}}"
+  set_fact:
+    acme_account_key_file: "{{ lookup('first_found', acme_keypath) }}"
+  delegate_to: localhost
   vars:
     acme_keypath:
       - "{{ host_specific_files }}/crypto/account.key"
@@ -66,10 +72,9 @@
 
 #- debug:
 #    var: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) }}"
-    
+
 - name: Make sure account exists and has given contacts. We agree to TOS.
-  local_action:
-    module: acme_account
+  acme_account:
     account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
     account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     state: present
@@ -77,34 +82,34 @@
     acme_directory: "https://{{ which_ca }}/directory"
     acme_version: 2
     contact:
-      - "mailto:{{cert_emailaddress}}"
+      - "mailto:{{ cert_emailaddress }}"
+  delegate_to: localhost
   run_once: true
 
 - name: making a certificate signing request
-  local_action:
-    module: openssl_csr
+  openssl_csr:
     email_address: "{{ cert_emailaddress }}"
     common_name: "{{ cert_hostname }}"
     subject_alt_name: "{{ subject_alt_names | default(omit) }}"
     path: "{{ host_specific_files }}/crypto/server.csr"
-    privatekey_path: "{{ host_specific_files }}/crypto/server.key" 
+    privatekey_path: "{{ host_specific_files }}/crypto/server.key"
     privatekey_passphrase: "{{ openssl_passphrase | default(omit) }}"
+  delegate_to: localhost
   register: csrresults
 
 - name: if we created a new csr (configuration changed), all existing certs are invalid
-  local_action:
-    module: file
+  file:
     path: "{{ host_specific_files }}/crypto/{{ item }}"
     state: absent
+  delegate_to: localhost
   with_items:
     - server-fullchain.crt
     - server-intermediate.crt
     - server.crt
-  when: "csrresults.changed == true"
+  when: csrresults.changed
 
 - name: getting a challenge from {{ which_ca }} to put in the DNS
-  local_action:
-    module: acme_certificate
+  acme_certificate:
     account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
     account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
@@ -117,6 +122,7 @@
     force: "{{ force_cert_renew | default( (csrresults['changed'] == true) | ternary('yes','no') ) }}"
     # Renew if the certificate has less than N days left on it (best practice says default probably 30)
     remaining_days: "{{ cert_renew_days }}"
+  delegate_to: localhost
   register: dnschallenge
 
 
@@ -126,8 +132,7 @@
 # cruft in the DNS - you'll be wondering why you can't catch a break...
 
 - name: ensuring no existing TXT records for CN
-  local_action:
-    module: nsupdate
+  nsupdate:
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
@@ -138,11 +143,11 @@
 #    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
     value: "anything"
     state: absent
-  when: "dnschallenge.changed == true"
+  delegate_to: localhost
+  when: dnschallenge.changed
 
 - name: ensuring no existing TXT records for SubjectAltNames
-  local_action:
-    module: nsupdate
+  nsupdate:
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
@@ -153,16 +158,16 @@
 #    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
     value: "anything"
     state: absent
+  delegate_to: localhost
   with_items: "{{ subject_alt_names }}"
-  when: dnschallenge.changed == true and subject_alt_names is defined
+  when: dnschallenge.changed and subject_alt_names is defined
 
 
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
 - name: putting the challenges we got for all domains into the DNS
-  local_action:
-    module: nsupdate
+  nsupdate:
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
@@ -172,13 +177,13 @@
     type: TXT
     ttl: 60
     value: "{{ item.value }}"
+  delegate_to: localhost
   with_dict: "{{ dnschallenge.challenge_data_dns }}"
-  when: "dnschallenge.changed == true"
+  when: dnschallenge.changed
 
 
 - name: asking {{ which_ca }} to sign our certs
-  local_action:
-    module: acme_certificate
+  acme_certificate:
     account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
     account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
     account_email: "{{ cert_emailaddress }}"
@@ -192,12 +197,12 @@
     force: "{{ force_cert_renew | default(false) }}"
     acme_version: 2
     data: "{{ dnschallenge }}"
-  when: "dnschallenge.changed == true"
+  delegate_to: localhost
+  when: dnschallenge.changed
 
 # clean up the mess
 - name: getting rid of challenge TXT records for CNs
-  local_action:
-    module: nsupdate
+  nsupdate:
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
@@ -208,11 +213,11 @@
 #    value: "{{ dnschallenge.challenge_data.get(cert_hostname)['dns-01'].resource_value }}"
     value: "anything"
     state: absent
-  when: "dnschallenge.changed == true"
+  delegate_to: localhost
+  when: dnschallenge.changed
 
 - name: getting rid of challenge TXT records for SubjectAltNames
-  local_action:
-    module: nsupdate
+  nsupdate:
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
@@ -223,8 +228,9 @@
 #    value: "{{ dnschallenge.challenge_data.get(item.split(':', 1)[1])['dns-01'].resource_value }}"
     value: "anything"
     state: absent
+  delegate_to: localhost
   with_items: "{{ subject_alt_names }}"
-  when: dnschallenge.changed == true and subject_alt_names is defined
+  when: dnschallenge.changed and subject_alt_names is defined
 
 
 ...
