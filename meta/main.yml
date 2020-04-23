@@ -43,12 +43,16 @@ galaxy_info:
   #   - 1.0
   #   - 7
   #   - 99.99
+  platforms:
+  - name: SmartOS
+    versions:
+    - 19.4.0
 
-  galaxy_tags: 
-  - "ACME"
-  - "LetsEncrypt"
+  galaxy_tags:
+  - "acme"
+  - "letsencrypt"
   - "nsupdate"
-  - "TSIG"
+  - "tsig"
 
     # List tags for your role here, one per line. A tag is a keyword that describes
     # and categorizes the role. Users find roles by searching for tags. Be sure to
