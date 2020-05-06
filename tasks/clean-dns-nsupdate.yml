@@ -1,0 +1,36 @@
+---
+# Preemptively getting rid of any existing TXT records.
+# Note that you can not do an update if a record of RRTYPE exists at said node.
+# Important for when you're debugging something that blew up in the past and left
+# cruft in the DNS - you'll be wondering why you can't catch a break...
+
+- name: ensuring no existing TXT records for CN
+  nsupdate:
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
+    type: TXT
+    value: "anything"
+    state: absent
+  delegate_to: localhost
+  when: dnschallenge.changed
+
+- name: ensuring no existing TXT records for SubjectAltNames
+  nsupdate:
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
+    record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
+    type: TXT
+    value: "anything"
+    state: absent
+  delegate_to: localhost
+  with_items: "{{ subject_alt_names }}"
+  when: dnschallenge.changed and subject_alt_names is defined
+
+

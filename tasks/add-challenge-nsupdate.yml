@@ -1,0 +1,18 @@
+---
+# WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
+# thanks acme guys and yaml parser writers.  
+
+- name: putting the challenges we got for all domains into the DNS
+  nsupdate:
+    key_algorithm: "{{ nsupdate_hmac }}"
+    key_name: "{{ nsupdate_key_name }}"
+    key_secret: "{{ nsupdate_key_secret }}"
+    server: "{{ nsupdate_server }}"
+    zone: "{{ acmecnamezone | default(item.key.split('.', 1)[1]) }}"
+    record: "{{ item.key }}"
+    type: TXT
+    ttl: 60
+    value: "{{ item.value }}"
+  delegate_to: localhost
+  with_dict: "{{ dnschallenge.challenge_data_dns }}"
+  when: dnschallenge.changed
