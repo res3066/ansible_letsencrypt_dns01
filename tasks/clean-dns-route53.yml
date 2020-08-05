@@ -11,7 +11,7 @@
     zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}.{{acmecnamezone}}"
     type: TXT
-    value: "{{dnschallenge.challenge_data_dns}}"
+    value: "{{dnschallenge.challenge_data_dns['_acme-challenge.'+(cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short)][0]}}"
     state: absent
   delegate_to: localhost
   when: dnschallenge.changed
@@ -23,7 +23,7 @@
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}.{{acmecnamezone}}"
     type: TXT
-    value: "{{dnschallenge.challenge_data_dns}}"
+    value: "{{dnschallenge.challenge_data_dns['_acme-challenge.'+(item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0])][0]}}"
     state: absent
   delegate_to: localhost
   with_items: "{{ subject_alt_names }}"
