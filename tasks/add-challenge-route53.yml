@@ -3,14 +3,14 @@
 # thanks acme guys and yaml parser writers.  
 
 - debug:
-    msg: "{{dnschallenge.challenge_data_dns}}"
-    
+    msg: "{{ dnschallenge.challenge_data_dns }}"
+
 - name: putting the challenges we got for all domains into the DNS
   route53:
-    aws_access_key: "{{aws_key |default(omit) }}"
-    aws_secret_key: "{{aws_secret |default(omit) }}"
+    aws_access_key: "{{ aws_key |default(omit) }}"
+    aws_secret_key: "{{ aws_secret |default(omit) }}"
     zone: "{{ acmecnamezone | default(item.key.split('.', 1)[1]) }}"
-    record: "{{ item.key }}.{{acmecnamezone}}"
+    record: "{{ item.key }}.{{ acmecnamezone }}"
     type: TXT
     ttl: 60
     value: '"{{ item.value | first }}"'

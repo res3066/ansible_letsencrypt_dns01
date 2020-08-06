@@ -27,7 +27,8 @@
 
 - name: Check for existance of the CNAME if using acmecnamezone and SAN (expect skip when healthy!)
   fail: msg="can't find CNAME for _acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') }}"
-  when: subject_alt_names is defined and acmecnamezone is defined and lookup('dig', '_acme-challenge.'+ item.split(':', 1)[1] | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
+  when: subject_alt_names is defined and acmecnamezone is defined and
+    lookup('dig', '_acme-challenge.'+ item.split(':', 1)[1] | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
   with_items: "{{ subject_alt_names }}"
 
 - name: check if cert key exists
@@ -124,7 +125,10 @@
     acme_directory: "https://{{ which_ca }}/directory"
     acme_version: 2
     # Renew if force_cert_renew variable set OR if the CSR changed
-    force: "{{ force_cert_renew | default( (csrresults['changed'] == true) | ternary('yes','no') ) }}"
+    # HOPEFULLY this shuts up ansible-lint and doesn't break anything RS 2020-08-06
+# old line:    force: "{{ force_cert_renew | default( (csrresults['changed'] == true) | ternary('yes','no') ) }}"
+# becomes new line below:
+    force: "{{ force_cert_renew | default( (csrresults['changed']) | ternary('yes','no') ) }}"
     # Renew if the certificate has less than N days left on it (best practice says default probably 30)
     remaining_days: "{{ cert_renew_days }}"
   delegate_to: localhost
@@ -143,18 +147,18 @@
 #- name: clear up prior TXT records (route53)
 #  include_tasks: clean-dns-route53.yml
 #  when: aws_key is defined and dnschallenge.changed
-  
+
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
 - name: add challenges (nsupdate)
   include_tasks: add-challenge-nsupdate.yml
   when: nsupdate_hmac is defined and dnschallenge.changed
-  
+
 - name: add challenges (route53)
   include_tasks: add-challenge-route53.yml
   when: aws_key is defined and dnschallenge.changed
-  
+
 - name: asking {{ which_ca }} to sign our certs
   acme_certificate:
     account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
@@ -176,8 +180,9 @@
 - name: clean up the mess (nsupdate)
   include_tasks: clean-dns-nsupdate.yml
   when: nsupdate_hmac is defined and dnschallenge.changed
-  
+
 - name: clean up the mess (route53)
   include_tasks: clean-dns-route53.yml
   when: aws_key is defined and dnschallenge.changed
-  
+
+...
