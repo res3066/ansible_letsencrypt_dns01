@@ -24,3 +24,4 @@
   wait_for:
     timeout: 61
   delegate_to: localhost
+  when: dnschallenge.changed and dnschallenge.challenge_data_dns|length > 0
