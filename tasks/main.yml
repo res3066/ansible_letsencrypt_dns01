@@ -4,7 +4,17 @@
 - name: validate configuration
   fail:
     msg: need either nsupdate or route53 working
-  when: nsupdate_hmac is not defined and aws_key is not defined
+  when:
+    - nsupdate_hmac is not defined
+    - aws_key is not defined 
+    - acmeservers is not defined
+
+- name: can't have both legacy and new way defined at the same time
+  fail:
+    msg: you seem to have old-style (nsupdate_server) and new-style (acmeservers) vars set - pick one or the other
+  when:
+    - nsupdate_hmac is defined or nsupdate_key_name is defined or nsupdate_key_secret is defined or nsupdate_server is defined
+    - acmeservers is defined
 
 - name: Making sure crypto subdirectory is present
   file:
@@ -142,7 +152,9 @@
 
 - name: clear up prior TXT records (nsupdate)
   include_tasks: clean-dns-nsupdate.yml
-  when: nsupdate_hmac is defined and dnschallenge.changed
+  when:
+    - acmeservers is defined or nsupdate_hmac is defined
+    - dnschallenge.changed
 
 #- name: clear up prior TXT records (route53)
 #  include_tasks: clean-dns-route53.yml
@@ -153,7 +165,9 @@
 
 - name: add challenges (nsupdate)
   include_tasks: add-challenge-nsupdate.yml
-  when: nsupdate_hmac is defined and dnschallenge.changed
+  when:
+    - acmeservers is defined or nsupdate_hmac is defined
+    - dnschallenge.changed
 
 - name: add challenges (route53)
   include_tasks: add-challenge-route53.yml
@@ -179,10 +193,13 @@
 
 - name: clean up the mess (nsupdate)
   include_tasks: clean-dns-nsupdate.yml
-  when: nsupdate_hmac is defined and dnschallenge.changed
+  when:
+    - acmeservers is defined or nsupdate_hmac is defined
+    - dnschallenge.changed
 
 - name: clean up the mess (route53)
   include_tasks: clean-dns-route53.yml
   when: aws_key is defined and dnschallenge.changed
 
 ...
+

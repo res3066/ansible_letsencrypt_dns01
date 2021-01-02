@@ -2,6 +2,8 @@
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
+# This is legacy support for single server update (nsupdate_server variable set)
+
 - name: putting the challenges we got for all domains into the DNS
   nsupdate:
     key_algorithm: "{{ nsupdate_hmac }}"
@@ -15,4 +17,35 @@
     value: "{{ item.value }}"
   delegate_to: localhost
   with_dict: "{{ dnschallenge.challenge_data_dns }}"
-  when: dnschallenge.changed
+  when:
+    - nsupdate_server is defined
+    - dnschallenge.changed
+
+# end legacy support...
+#
+
+#
+# This is support for multi-server update (acmeservers array set)
+
+- name: putting the challenges we got for all domains into the DNS (multi-server)
+  nsupdate:
+    key_algorithm: "{{ item.0.algorithm }}"
+    key_name: "{{ item.0.key }}"
+    key_secret: "{{ item.0.secret }}"
+    server: "{{ item.0.name }}"
+    zone: "{{ acmecnamezone | default(item.1.key.split('.', 1)[1]) }}"
+    record: "{{ item.1.key }}"
+    type: TXT
+    ttl: 60
+    value: "{{ item.1.value }}"
+  delegate_to: localhost
+  with_nested:
+    - "{{ acmeservers }}"
+    - "{{ dnschallenge.challenge_data_dns | dict2items }}"
+  when:
+    - acmeservers is defined
+    - dnschallenge.changed
+
+
+...
+
