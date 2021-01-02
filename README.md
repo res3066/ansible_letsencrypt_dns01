@@ -156,7 +156,38 @@ which_ca: acme-staging-v02.api.letsencrypt.org
 # which_ca: acme-v02.api.letsencrypt.org
 
 cert_emailaddress: sslcert@example.com
+```
 
+Originally we were delegating "acmezonename" (see below) to a single
+nameserver but that led to trouble when one of our upstream ISPs was
+intermittently corrupting DNS packets resulting in sporadic failures -
+made worse when LetsEncrypt started verifying from multiple locations.
+The solution is to delegate the zone to more than one nameserver, but
+if you count on axfr/ixfr to propagate your changes you may find
+intermittent failures as well.  Our solution is to provide a list of
+nameservers to update, and have Ansible send UPDATE messages to all of
+them, thus assuring that the data is where we want it, when want it.
+Each can have its own key/secret/hmac combination if desired:
+
+```
+acmeservers:
+  - name: "acme1.seastrom.com"
+    algorithm: "hmac-sha256"
+    key: "acme.example.com-20190304-00"
+    secret: "base64-nsupdate-key-secret=="
+
+  - name: "acme2.seastrom.com"
+    algorithm: "hmac-sha256"
+    key: "acme.example.com-20190304-01"
+    secret: "different-base64-nsupdate-key-secret=="
+
+```
+
+This works fine even if you have a list of one nameserver to update.
+Below are the legacy, single server method (preserved here for posterity, but you should use the
+one outlined above):
+
+```
 nsupdate_hmac: hmac-sha256
 nsupdate_key_name: acme.example.com-20190205-00
 nsupdate_key_secret: base64-nsupdate-key-secret==
