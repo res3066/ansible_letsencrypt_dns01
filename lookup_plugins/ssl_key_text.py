@@ -27,7 +27,11 @@ EXAMPLES = """
 from ansible.errors import AnsibleError, AnsibleParserError, AnsibleModuleError
 from ansible.plugins.lookup import LookupBase
 from ansible.module_utils._text import to_text
-from ansible.module_utils import crypto as crypto_utils
+try:
+    from ansible.module_utils import crypto as crypto_utils
+except ImportError:
+    from ansible_collections.community.crypto.plugins.module_utils import crypto as crypto_utils
+
 from ansible.utils.display import Display
 
 try:
