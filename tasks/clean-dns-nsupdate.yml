@@ -4,48 +4,6 @@
 # Important for when you're debugging something that blew up in the past and left
 # cruft in the DNS - you'll be wondering why you can't catch a break...
 
-# This is legacy support for single server update (nsupdate_server variable set)
-
-- name: ensuring no existing TXT records for CN
-  nsupdate:
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server | ansible.netcommon.ipaddr | ternary(nsupdate_server, lookup('dig', nsupdate_server)) }}"
-    zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
-    type: TXT
-    value: "anything"
-    state: absent
-  delegate_to: localhost
-  when:
-    - nsupdate_hmac is defined
-    - dnschallenge.changed
-
-- name: ensuring no existing TXT records for SubjectAltNames
-  nsupdate:
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server | ansible.netcommon.ipaddr | ternary(nsupdate_server, lookup('dig', nsupdate_server)) }}"
-    zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
-    record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
-    type: TXT
-    value: "anything"
-    state: absent
-  delegate_to: localhost
-  with_items: "{{ subject_alt_names }}"
-  when:
-    - nsupdate_hmac is defined
-    - subject_alt_names is defined
-    - dnschallenge.changed
-
-# end legacy support...
-#
-#
-#
-# This is support for multi-server update (acmeservers array set)
-
 - name: ensuring no existing TXT records for CN (multi-server)
   nsupdate:
     key_algorithm: "{{ item.algorithm }}"

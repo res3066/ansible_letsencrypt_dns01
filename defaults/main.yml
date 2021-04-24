@@ -3,3 +3,8 @@
 cert_renew_days: 60
 cert_hostname: "{{ inventory_hostname }}"
 cert_hostname_short: "{{ inventory_hostname_short }}"
+acmeservers:
+  - name: "{{ nsupdate_server }}"
+    algorithm: "{{ nsupdate_hmac }}"
+    key: "{{ nsupdate_key_name }}"
+    secret: "{{ nsupdate_key_secret }}"

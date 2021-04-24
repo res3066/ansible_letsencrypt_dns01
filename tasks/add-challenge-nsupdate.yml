@@ -2,31 +2,6 @@
 # WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
 # thanks acme guys and yaml parser writers.  
 
-# This is legacy support for single server update (nsupdate_server variable set)
-
-- name: putting the challenges we got for all domains into the DNS
-  nsupdate:
-    key_algorithm: "{{ nsupdate_hmac }}"
-    key_name: "{{ nsupdate_key_name }}"
-    key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server | ansible.netcommon.ipaddr | ternary(nsupdate_server, lookup('dig', nsupdate_server)) }}"
-    zone: "{{ acmecnamezone | default(item.key.split('.', 1)[1]) }}"
-    record: "{{ item.key }}"
-    type: TXT
-    ttl: 60
-    value: "{{ item.value }}"
-  delegate_to: localhost
-  with_dict: "{{ dnschallenge.challenge_data_dns }}"
-  when:
-    - nsupdate_server is defined
-    - dnschallenge.changed
-
-# end legacy support...
-#
-
-#
-# This is support for multi-server update (acmeservers array set)
-
 - name: putting the challenges we got for all domains into the DNS (multi-server)
   nsupdate:
     key_algorithm: "{{ item.0.algorithm }}"
