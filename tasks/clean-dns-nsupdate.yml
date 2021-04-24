@@ -11,7 +11,7 @@
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
+    server: "{{ nsupdate_server | ansible.netcommon.ipaddr | ternary(nsupdate_server, lookup('dig', nsupdate_server)) }}"
     zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
@@ -27,7 +27,7 @@
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
+    server: "{{ nsupdate_server | ansible.netcommon.ipaddr | ternary(nsupdate_server, lookup('dig', nsupdate_server)) }}"
     zone: "{{ acmecnamezone | default(item.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ item.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.split(':', 1)[1].split('.')[0] }}"
     type: TXT
@@ -51,7 +51,7 @@
     key_algorithm: "{{ item.algorithm }}"
     key_name: "{{ item.key }}"
     key_secret: "{{ item.secret }}"
-    server: "{{ item.name }}"
+    server: "{{ lookup('dig', item.name) }}"
     zone: "{{ acmecnamezone | default(cert_hostname.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ cert_hostname | replace('*.','') if acmecnamezone is defined else cert_hostname_short }}"
     type: TXT
@@ -69,7 +69,7 @@
     key_algorithm: "{{ item.0.algorithm }}"
     key_name: "{{ item.0.key }}"
     key_secret: "{{ item.0.secret }}"
-    server: "{{ item.0.name }}"
+    server: "{{ lookup('dig', item.0.name) }}"
     zone: "{{ acmecnamezone | default(item.1.split('.', 1)[1]) }}"
     record: "_acme-challenge.{{ item.1.split(':', 1)[1] | replace('*.','') if acmecnamezone is defined else item.1.split(':', 1)[1].split('.')[0] }}"
     type: TXT

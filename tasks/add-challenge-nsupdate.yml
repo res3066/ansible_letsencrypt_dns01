@@ -9,7 +9,7 @@
     key_algorithm: "{{ nsupdate_hmac }}"
     key_name: "{{ nsupdate_key_name }}"
     key_secret: "{{ nsupdate_key_secret }}"
-    server: "{{ nsupdate_server }}"
+    server: "{{ nsupdate_server | ansible.netcommon.ipaddr | ternary(nsupdate_server, lookup('dig', nsupdate_server)) }}"
     zone: "{{ acmecnamezone | default(item.key.split('.', 1)[1]) }}"
     record: "{{ item.key }}"
     type: TXT
@@ -32,7 +32,7 @@
     key_algorithm: "{{ item.0.algorithm }}"
     key_name: "{{ item.0.key }}"
     key_secret: "{{ item.0.secret }}"
-    server: "{{ item.0.name }}"
+    server: "{{ lookup('dig', item.0.name) }}"
     zone: "{{ acmecnamezone | default(item.1.key.split('.', 1)[1]) }}"
     record: "{{ item.1.key }}"
     type: TXT
