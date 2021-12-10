@@ -26,21 +26,15 @@ EXAMPLES = """
 
 from ansible.errors import AnsibleError, AnsibleParserError, AnsibleModuleError
 from ansible.plugins.lookup import LookupBase
-from ansible.module_utils._text import to_text
-try:
-    from ansible.module_utils import crypto as crypto_utils
-except ImportError:
-    from ansible_collections.community.crypto.plugins.module_utils import crypto as crypto_utils
-
+from ansible.module_utils._text import to_text,to_bytes
 from ansible.utils.display import Display
 
 try:
-    import OpenSSL
-    from OpenSSL import crypto
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PrivateFormat, NoEncryption
 except ImportError:
-    PYOPENSSL_FOUND = False
+    CRYPTOGRAPHY_FOUND = False
 else:
-    PYOPENSSL_FOUND = True
+    CRYPTOGRAPHY_FOUND = True
 
 display = Display()
 
@@ -49,8 +43,8 @@ class LookupModule(LookupBase):
 
     def run(self, terms, variables=None, **kwargs):
 
-        if not PYOPENSSL_FOUND:
-            raise AnsibleModuleError('ssl_key_text plugin requires pyOpenSSL')
+        if not CRYPTOGRAPHY_FOUND:
+            raise AnsibleModuleError('ssl_key_text plugin requires cryptography')
 
         # lookups in general are expected to both take a list as input and output a list
         # this is done so they work with the looping construct 'with_'.
@@ -67,11 +61,15 @@ class LookupModule(LookupBase):
             display.vvvv(u"key lookup using %s as file" % lookupfile)
             try:
                 passphrase = kwargs.get('passphrase', None)
-                if passphrase == '':
-                    passphrase = None
+                if passphrase == '' or passphrase is None:
+                    password = None
+                else:
+                    password = to_bytes(passphrase)
                 if lookupfile:
-                    contents = crypto_utils.load_privatekey(lookupfile, passphrase)
-                    text_contents = crypto.dump_privatekey(crypto.FILETYPE_PEM, contents)
+                    with open(lookupfile, 'rb') as b_priv_key_fh:
+                       content = b_priv_key_fh.read()
+                    private_key = load_pem_private_key(content, password)
+                    text_contents = private_key.private_bytes(Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption())
                     ret.append(to_text(text_contents))
                 else:
                     # Always use ansible error classes to throw 'final' exceptions,
