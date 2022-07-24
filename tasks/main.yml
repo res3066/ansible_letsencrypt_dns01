@@ -43,7 +43,7 @@
   openssl_privatekey:
     path: "{{ host_specific_files }}/crypto/server.key"
     passphrase: "{{ openssl_passphrase | default(omit) }}"
-    cipher: "{{ 'AES-256-CBC' if openssl_passphrase is defined else omit }}"
+    cipher: "{{ 'auto' if openssl_passphrase is defined else omit }}"
     type: RSA
     size: 2048
   delegate_to: localhost
@@ -59,7 +59,7 @@
   openssl_privatekey:
     path: "files/account.key"
     passphrase: "{{ openssl_passphrase | default(omit) }}"
-    cipher: "{{ 'AES-256-CBC' if openssl_passphrase is defined else omit }}"
+    cipher: "{{ 'auto' if openssl_passphrase is defined else omit }}"
     size:  4096
   delegate_to: localhost
   run_once: true
