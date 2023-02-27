@@ -1,0 +1,84 @@
+- name: check for master playbook account key (local)
+  block:
+    - name: check if master playbook account key exists
+      stat:
+        path: "files/account.key"
+      register: account_key_stat
+
+    - name: create master playbook ACME account key if not already existing
+      openssl_privatekey:
+        path: "files/account.key"
+        passphrase: "{{ openssl_passphrase | default(omit) }}"
+        cipher: "{{ 'auto' if openssl_passphrase is defined else omit }}"
+        size:  4096
+      when: not account_key_stat.stat.exists
+
+    - name: looking for per-host override to account.key
+      set_fact:
+        acme_account_key_file: "{{ lookup('first_found', acme_keypath) }}"
+      vars:
+        acme_keypath:
+          - "{{ host_specific_files }}/crypto/account.key"
+          - "files/account.key"
+    - name: Make sure account exists and has given contacts. We agree to TOS.
+      acme_account:
+        account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
+        account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
+        state: present
+        terms_agreed: yes
+        acme_directory: "https://{{ which_ca }}/directory"
+        acme_version: 2
+        contact:
+          - "mailto:{{ cert_emailaddress }}"
+  when: vault_cert_path is not defined
+  run_once: true
+  delegate_to: localhost
+
+- name: check for master playbook account key (vault)
+  block:
+    - name: check if master account key exists
+      community.hashi_vault.vault_read:
+        path: "{{ vault_le_account_path }}/{{ which_ca }}/{{ cert_emailaddress }}"
+      register: existing_account_key
+      ignore_errors: yes
+
+    - name: openssl private key (specific to this cert)
+      command: "openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048"
+      register: new_key
+      when: existing_account_key.data.data.data['account-key'] is not defined
+
+    - name: Make sure account exists and has given contacts. We agree to TOS.
+      acme_account:
+        account_key_content: "{{ new_key.stdout }}"
+        state: present
+        terms_agreed: yes
+        acme_directory: "https://{{ which_ca }}/directory"
+        acme_version: 2
+        contact:
+          - "mailto:{{ cert_emailaddress }}"
+      when: new_key.changed
+
+    - name: store openssl private key if new
+      community.hashi_vault.vault_write:
+        path: "{{ vault_le_account_path }}/{{ which_ca }}/{{ cert_emailaddress }}"
+        data:
+          data:
+            "account-key": "{{ new_key.stdout }}"
+            "acme_directory": "https://{{ which_ca }}/directory"
+            "contact": 
+              - "mailto:{{ cert_emailaddress }}"
+      when: new_key.changed 
+
+    - name: set vault account key
+      set_fact:
+        vault_account_key: "{{ existing_account_key.data.data.data['account-key'] }}"
+      when: not new_key.changed
+
+    - name: set vault account key
+      set_fact:
+        vault_account_key: "{{ new_key.stdout }}"
+      when: new_key.changed
+        
+  when: vault_cert_path is defined
+  run_once: true
+  delegate_to: localhost
