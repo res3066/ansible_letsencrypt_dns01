@@ -53,7 +53,7 @@
         size: 2048
       delegate_to: localhost
       when: not cert_key_stat.stat.exists
-  when: vault_cert_path is not defined
+  when: vault_cert_mount is not defined
   
 - name: create key if necessary using vault
   block:
@@ -84,13 +84,14 @@
         vault_host_fullchain: "{{ existing.data.data.data['server-fullchain'] | default(omit) }}"
         vault_host_intermediate: "{{ existing.data.data.data['server-intermediate'] | default(omit) }}"
         vault_host_san: "{{ existing.data.data.data['san'] | default(omit) }}"
+        vault_host_ca: "{{ existing.data.data.data['ca'] | default(omit) }}"
       when: not new_key.changed
 
     - name: set existing key
       set_fact:
         vault_host_key: "{{ new_key.stdout }}"
       when: new_key.changed
-  when: vault_cert_path is defined
+  when: vault_cert_mount is defined
   delegate_to: localhost
 
 - name: make the CSR (local)
@@ -114,7 +115,7 @@
         - server-intermediate.crt
         - server.crt
       when: csrresults.changed
-  when: vault_cert_path is not defined
+  when: vault_cert_mount is not defined
   delegate_to: localhost
 
 - name: make the CSR (vault)
@@ -124,14 +125,19 @@
 #        content: "{{ vault_host_csr }}"
 #      register: vault_csr_info
 #      when: vault_host_csr is defined
+    - name: force SAN if none
+      set_fact:
+        subject_alt_names:
+          - "DNS:{{ cert_hostname }}"
+      when: subject_alt_names is not defined
 
-    - name: create CSR if its not the same content
+    - name: create CSR if its not the same content (SAN)
       command:
-        cmd: "openssl req -new -key /dev/stdin -subj '/CN={{ inventory_hostname }}' -addext subjectAltName={{ subject_alt_names | join(',') }}"
+        cmd: "openssl req -new -key /dev/stdin -subj '/CN={{ cert_hostname }}' -addext subjectAltName={{ subject_alt_names | join(',') }}"
         stdin: "{{ vault_host_key }}"
       register: new_csr
       # when: vault_csr_info is skipped or (vault_csr_info.subject_alt_name| join(",")) != (subject_alt_names | join(','))
-      when: vault_host_san is not defined or subject_alt_names != vault_host_san
+      when: vault_host_san is not defined or subject_alt_names != vault_host_san or vault_host_ca is not defined or vault_host_ca != which_ca
 
     - name: store openssl csr if new
       community.hashi_vault.vault_write:
@@ -147,8 +153,10 @@
       set_fact:
         vault_host_csr: "{{ new_csr.stdout }}"
         vault_host_san: "{{ subject_alt_names | default(omit) }}"
+        force_cert_renew: yes
       when: new_csr.changed
-  when: vault_cert_path is defined
+    
+  when: vault_cert_mount is defined
   delegate_to: localhost
 
 - name: getting a challenge from {{ which_ca }} to put in the DNS (local)
@@ -170,7 +178,7 @@
     remaining_days: "{{ cert_renew_days }}"
   delegate_to: localhost
   register: dnschallenge_local
-  when: vault_cert_path is not defined
+  when: vault_cert_mount is not defined
 
 - name: prepare for vault renewal/cert
   block:
@@ -205,7 +213,7 @@
         remaining_days: "{{ cert_renew_days }}"
       register: dnschallenge_vault
   delegate_to: localhost
-  when: vault_cert_path is defined
+  when: vault_cert_mount is defined
 
 - name: set dnschallenge
   set_fact:
@@ -297,6 +305,7 @@
             "server-fullchain": "{{ certs_signed.all_chains[0].full_chain }}"
             "server-intermediate": "{{ certs_signed.all_chains[0].chain }}"
             "notafter": "{{ cert_info.not_after }}"
+            "ca": "{{ which_ca }}"
       when: certs_signed.changed 
 
     - name: remove cert

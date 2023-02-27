@@ -2,9 +2,14 @@
 # defaults file for letsencrypt-dns01
 cert_renew_days: 60
 cert_hostname: "{{ inventory_hostname }}"
+cert_machine: "{{ inventory_hostname }}"
 cert_hostname_short: "{{ inventory_hostname_short }}"
 acmeservers:
   - name: "{{ nsupdate_server }}"
     algorithm: "{{ nsupdate_hmac }}"
     key: "{{ nsupdate_key_name }}"
     secret: "{{ nsupdate_key_secret }}"
+
+vault_cert_path: "{{ vault_cert_mount }}/data/certs/{{ cert_machine }}"
+vault_le_account_path: "{{ vault_cert_mount }}/data/letsencrypt"
+

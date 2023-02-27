@@ -307,6 +307,38 @@ total 33
 [root@ansible ~/workdir]# 
 ```
 
+
+# Storage of crypto material in vault
+
+define `vault_cert_mount` to enable vault
+
+
+`vault_cert_path: "kv/data/certs/{{ cert_machine }}"`
+`mount/letsencrypt/macgis.com/macgis.com`
+
+{
+  "server-cert": "cert",
+  "server-csr": "csr",
+  "server-fullchain": "fullchain",
+  "server-intermediate": "intermediate",
+  "server-key": "key2",
+  "san": ["macgis.com","www.macgis.com","admin.macgis.com"],
+  "notafter": "20230528112832Z",
+  "ca": "acme-staging-v02.api.letsencrypt.org"
+}
+
+let's encrypt account information:
+`vault_le_account_path: "kv/data/letsencrypt"`
+`mount/letencrypt/acme-staging-v02.api.letsencrypt.org/letsencrypt@gbp.gaige.net`
+{
+  "account-key": "key",
+  "acme_directory": "https://acme-staging-v02.api.letsencrypt.org/directory",
+  "contact": [
+    "mailto:letsencrypt@gbp.gaige.net"
+  ]
+}
+
+
 License
 -------
 
@@ -316,4 +348,6 @@ Author Information
 ------------------
 
 rs@seastrom.com
+gaige@cluetrust.com (Vault and sundry)
+
 
