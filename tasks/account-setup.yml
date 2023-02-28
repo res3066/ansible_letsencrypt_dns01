@@ -30,7 +30,7 @@
         acme_version: 2
         contact:
           - "mailto:{{ cert_emailaddress }}"
-  when: vault_cert_path is not defined
+  when: vault_cert_mount is not defined
   run_once: true
   delegate_to: localhost
 
@@ -79,6 +79,6 @@
         vault_account_key: "{{ new_key.stdout }}"
       when: new_key.changed
         
-  when: vault_cert_path is defined
+  when: vault_cert_mount is defined
   run_once: true
   delegate_to: localhost

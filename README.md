@@ -338,6 +338,13 @@ let's encrypt account information:
   ]
 }
 
+To get access to the defaults information only, use:
+    - name: get defaults from letsencrypt
+      import_role:
+        name: letsencrypt-dns01
+        tasks_from: noop
+
+
 
 License
 -------

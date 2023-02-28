@@ -180,7 +180,7 @@
   register: dnschallenge_local
   when: vault_cert_mount is not defined
 
-- name: prepare for vault renewal/cert
+- name: prepare for vault renewal/cert (vault)
   block:
     - name: clear out old cert
       file:
@@ -190,6 +190,8 @@
         - server-fullchain.crt
         - server-intermediate.crt
         - server.crt
+        - server.key
+        - server.csr
 
     # can skip this is we just use the expiration in the cert data
     - name: copy in cert if we have it
@@ -307,13 +309,17 @@
             "notafter": "{{ cert_info.not_after }}"
             "ca": "{{ which_ca }}"
       when: certs_signed.changed 
-
-    - name: remove cert
-      file:
-        path: "{{ host_specific_files }}/crypto/server.crt"
-        state: absent
   delegate_to: localhost
-  when:  dnschallenge_vault.changed
+  when: dnschallenge_vault.changed
+
+- name: remove cert
+  file:
+    path: "{{ host_specific_files }}/crypto/server.crt"
+    state: absent
+
+  delegate_to: localhost
+  when: vault_cert_mount is defined
+
 
 - name: clean up the mess (nsupdate)
   include_tasks: clean-dns-nsupdate.yml
