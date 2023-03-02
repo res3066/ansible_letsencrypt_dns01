@@ -344,6 +344,13 @@ To get access to the defaults information only, use:
         name: letsencrypt-dns01
         tasks_from: noop
 
+or
+	
+    - name: get defaults from letsencrypt
+      include_role:
+        name: letsencrypt-dns01
+        tasks_from: noop
+        public: yes
 
 
 License
