@@ -58,7 +58,7 @@
           - "mailto:{{ cert_emailaddress }}"
       when: new_key.changed
 
-    - name: store openssl private key if new
+    - name: store openssl private key in vault
       community.hashi_vault.vault_write:
         path: "{{ vault_le_account_path }}/{{ which_ca }}/{{ cert_emailaddress }}"
         data:
@@ -69,7 +69,7 @@
               - "mailto:{{ cert_emailaddress }}"
       when: new_key.changed 
 
-    - name: set vault account key
+    - name: set vault account key from Vault
       set_fact:
         vault_account_key: "{{ existing_account_key.data.data.data['account-key'] }}"
       when: not new_key.changed

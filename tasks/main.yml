@@ -43,7 +43,7 @@
   when: vault_cert_mount is defined
 
 - name: use local files
-  include_tasks: main-vault.yml
+  include_tasks: main-files.yml
   when: vault_cert_mount is not defined
 
 ## END: conditionally use vault or local
