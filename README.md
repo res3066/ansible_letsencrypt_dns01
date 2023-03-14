@@ -275,7 +275,19 @@ unencrypted PEM format:
 Dependencies
 ------------
 
-None
+Requires `hashi_vault` because even optional includes are evaluated.
+
+To add to your `requirements.txt`:
+```
+collections:
+- name: community.hashi_vault
+```
+
+To add manually:
+```
+ansible-galaxy collection install community.hashi\_vault
+```
+
 (If `ssl_key_text` is used, PyOpenSSL must be present)
 
 Example Playbook
