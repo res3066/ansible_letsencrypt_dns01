@@ -1,0 +1,29 @@
+---
+
+# Preemptively getting rid of any existing TXT records.
+# Note that you can not do an update if a record of RRTYPE exists at said node.
+# Important for when you're debugging something that blew up in the past and left
+# cruft in the DNS - you'll be wondering why you can't catch a break...
+
+- name: clear up prior TXT records (nsupdate)
+  include_tasks: clean-dns-nsupdate.yml
+  when:
+    - acmeservers is defined
+    - dnschallenge.changed
+
+#- name: clear up prior TXT records (route53)
+#  include_tasks: clean-dns-route53.yml
+#  when: aws_key is defined and dnschallenge.changed
+
+# WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
+# thanks acme guys and yaml parser writers.  
+
+- name: add challenges (nsupdate)
+  include_tasks: add-challenge-nsupdate.yml
+  when:
+    - acmeservers is defined
+    - dnschallenge.changed
+
+- name: add challenges (route53)
+  include_tasks: add-challenge-route53.yml
+  when: aws_key is defined and dnschallenge.changed

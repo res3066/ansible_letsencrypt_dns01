@@ -8,6 +8,9 @@
     - aws_key is not defined 
     - acmeservers is not defined
 
+- name: validate account
+  include_tasks: account-setup.yml
+
 - name: Making sure crypto subdirectory is present
   file:
     name: "{{ host_specific_files }}/crypto"
@@ -33,155 +36,17 @@
     lookup('dig', '_acme-challenge.'+ item.split(':', 1)[1] | replace('*.',''), 'qtype=CNAME')=="NXDOMAIN"
   with_items: "{{ subject_alt_names }}"
 
-- name: check if cert key exists
-  stat:
-    path: "{{ host_specific_files }}/crypto/server.key"
-  delegate_to: localhost
-  register: cert_key_stat
+## BEGIN: conditionally use vault or local
 
-- name: openssl private key (specific to this cert)
-  openssl_privatekey:
-    path: "{{ host_specific_files }}/crypto/server.key"
-    passphrase: "{{ openssl_passphrase | default(omit) }}"
-    cipher: "{{ 'auto' if openssl_passphrase is defined else omit }}"
-    type: RSA
-    size: 2048
-  delegate_to: localhost
-  when: not cert_key_stat.stat.exists
+- name: use vault
+  include_tasks: main-vault.yml
+  when: vault_cert_mount is defined
 
-- name: check if master playbook account key exists
-  stat:
-    path: "files/account.key"
-  delegate_to: localhost
-  register: account_key_stat
+- name: use local files
+  include_tasks: main-files.yml
+  when: vault_cert_mount is not defined
 
-- name: create master playbook ACME account key if not already existing
-  openssl_privatekey:
-    path: "files/account.key"
-    passphrase: "{{ openssl_passphrase | default(omit) }}"
-    cipher: "{{ 'auto' if openssl_passphrase is defined else omit }}"
-    size:  4096
-  delegate_to: localhost
-  run_once: true
-  when: not account_key_stat.stat.exists
-
-- name: looking for per-host override to account.key
-  set_fact:
-    acme_account_key_file: "{{ lookup('first_found', acme_keypath) }}"
-  delegate_to: localhost
-  vars:
-    acme_keypath:
-      - "{{ host_specific_files }}/crypto/account.key"
-      - "files/account.key"
-
-
-#- debug:
-#    var: acme_account_key_file
-
-#- debug:
-#    var: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) }}"
-
-- name: Make sure account exists and has given contacts. We agree to TOS.
-  acme_account:
-    account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
-    account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
-    state: present
-    terms_agreed: yes
-    acme_directory: "https://{{ which_ca }}/directory"
-    acme_version: 2
-    contact:
-      - "mailto:{{ cert_emailaddress }}"
-  delegate_to: localhost
-  run_once: true
-
-- name: making a certificate signing request
-  openssl_csr:
-    email_address: "{{ cert_emailaddress }}"
-    common_name: "{{ cert_hostname }}"
-    subject_alt_name: "{{ subject_alt_names | default(omit) }}"
-    path: "{{ host_specific_files }}/crypto/server.csr"
-    privatekey_path: "{{ host_specific_files }}/crypto/server.key"
-    privatekey_passphrase: "{{ openssl_passphrase | default(omit) }}"
-  delegate_to: localhost
-  register: csrresults
-
-- name: if we created a new csr (configuration changed), all existing certs are invalid
-  file:
-    path: "{{ host_specific_files }}/crypto/{{ item }}"
-    state: absent
-  delegate_to: localhost
-  with_items:
-    - server-fullchain.crt
-    - server-intermediate.crt
-    - server.crt
-  when: csrresults.changed
-
-- name: getting a challenge from {{ which_ca }} to put in the DNS
-  acme_certificate:
-    account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
-    account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
-    account_email: "{{ cert_emailaddress }}"
-    src: "{{ host_specific_files }}/crypto/server.csr"
-    cert: "{{ host_specific_files }}/crypto/server.crt"
-    challenge: dns-01
-    acme_directory: "https://{{ which_ca }}/directory"
-    acme_version: 2
-    # Renew if force_cert_renew variable set OR if the CSR changed
-    # HOPEFULLY this shuts up ansible-lint and doesn't break anything RS 2020-08-06
-# old line:    force: "{{ force_cert_renew | default( (csrresults['changed'] == true) | ternary('yes','no') ) }}"
-# becomes new line below:
-    force: "{{ force_cert_renew | default( (csrresults['changed']) | ternary('yes','no') ) }}"
-    # Renew if the certificate has less than N days left on it (best practice says default probably 30)
-    remaining_days: "{{ cert_renew_days }}"
-  delegate_to: localhost
-  register: dnschallenge
-
-
-# Preemptively getting rid of any existing TXT records.
-# Note that you can not do an update if a record of RRTYPE exists at said node.
-# Important for when you're debugging something that blew up in the past and left
-# cruft in the DNS - you'll be wondering why you can't catch a break...
-
-- name: clear up prior TXT records (nsupdate)
-  include_tasks: clean-dns-nsupdate.yml
-  when:
-    - acmeservers is defined
-    - dnschallenge.changed
-
-#- name: clear up prior TXT records (route53)
-#  include_tasks: clean-dns-route53.yml
-#  when: aws_key is defined and dnschallenge.changed
-
-# WARNING:  the way the rr value here is crawled out of the response is potentially brittle af because of the -
-# thanks acme guys and yaml parser writers.  
-
-- name: add challenges (nsupdate)
-  include_tasks: add-challenge-nsupdate.yml
-  when:
-    - acmeservers is defined
-    - dnschallenge.changed
-
-- name: add challenges (route53)
-  include_tasks: add-challenge-route53.yml
-  when: aws_key is defined and dnschallenge.changed
-
-- name: asking {{ which_ca }} to sign our certs
-  acme_certificate:
-    account_key_src: "{{ omit if openssl_passphrase is defined else acme_account_key_file }}"
-    account_key_content: "{{ lookup('ssl_key_text', acme_account_key_file, passphrase=openssl_passphrase) if openssl_passphrase is defined else omit }}"
-    account_email: "{{ cert_emailaddress }}"
-    src: "{{ host_specific_files }}/crypto/server.csr"
-    cert: "{{ host_specific_files }}/crypto/server.crt"
-    fullchain: "{{ host_specific_files }}/crypto/server-fullchain.crt"
-    chain: "{{ host_specific_files }}/crypto/server-intermediate.crt"
-    challenge: dns-01
-    acme_directory: "https://{{ which_ca }}/directory"
-    remaining_days: "{{ cert_renew_days }}"
-    force: "{{ force_cert_renew | default(false) }}"
-    acme_version: 2
-    data: "{{ dnschallenge }}"
-  delegate_to: localhost
-  when: dnschallenge.changed
+## END: conditionally use vault or local
 
 - name: clean up the mess (nsupdate)
   include_tasks: clean-dns-nsupdate.yml
@@ -192,6 +57,3 @@
 - name: clean up the mess (route53)
   include_tasks: clean-dns-route53.yml
   when: aws_key is defined and dnschallenge.changed
-
-...
-

@@ -1,0 +1,166 @@
+---
+
+- name: create key if necessary using vault
+  block:
+    - name: check if cert key exists
+      community.hashi_vault.vault_read:
+        path: "{{ vault_cert_path }}/{{ inventory_hostname }}"
+      register: existing
+      ignore_errors: yes
+
+    - name: openssl private key (specific to this cert)
+      command: "openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048"
+      register: new_key
+      when: existing.data.data.data['server-key'] is not defined
+    
+    - name: store openssl private key if new
+      community.hashi_vault.vault_write:
+        path: "{{ vault_cert_path }}/{{ inventory_hostname }}"
+        data:
+          data:
+            "server-key": "{{ new_key.stdout }}"
+      when: new_key.changed 
+
+    - name: set existing key
+      set_fact:
+        vault_host_key: "{{ existing.data.data.data['server-key'] }}"
+        vault_host_csr: "{{ existing.data.data.data['server-csr'] | default(omit) }}"
+        vault_host_cert: "{{ existing.data.data.data['server-cert'] | default(omit) }}"
+        vault_host_fullchain: "{{ existing.data.data.data['server-fullchain'] | default(omit) }}"
+        vault_host_intermediate: "{{ existing.data.data.data['server-intermediate'] | default(omit) }}"
+        vault_host_san: "{{ existing.data.data.data['san'] | default(omit) }}"
+        vault_host_ca: "{{ existing.data.data.data['ca'] | default(omit) }}"
+      when: not new_key.changed
+
+    - name: set new key
+      set_fact:
+        vault_host_key: "{{ new_key.stdout }}"
+      when: new_key.changed
+  delegate_to: localhost
+
+- name: make the CSR (vault)
+  block:
+    - name: force SAN if none
+      set_fact:
+        subject_alt_names:
+          - "DNS:{{ cert_hostname }}"
+      when: subject_alt_names is not defined
+
+    - name: create CSR if its not the same content (SAN)
+      command:
+        cmd: "openssl req -new -key /dev/stdin -subj '/CN={{ cert_hostname }}' -addext subjectAltName={{ subject_alt_names | join(',') }}"
+        stdin: "{{ vault_host_key }}"
+      register: new_csr
+      # when: vault_csr_info is skipped or (vault_csr_info.subject_alt_name| join(",")) != (subject_alt_names | join(','))
+      when: vault_host_san is not defined or subject_alt_names != vault_host_san or vault_host_ca is not defined or vault_host_ca != which_ca
+
+    - name: store openssl csr if new
+      community.hashi_vault.vault_write:
+        path: "{{ vault_cert_path }}/{{ inventory_hostname }}"
+        data:
+          data:
+            "server-key": "{{ vault_host_key }}"
+            "server-csr": "{{ new_csr.stdout }}"
+            "san": "{{ subject_alt_names }}"
+      when: new_csr.changed 
+
+    - name: set new csr
+      set_fact:
+        vault_host_csr: "{{ new_csr.stdout }}"
+        vault_host_san: "{{ subject_alt_names | default(omit) }}"
+        force_cert_renew: yes
+      when: new_csr.changed
+  delegate_to: localhost
+
+- name: prepare for vault renewal/cert (vault)
+  block:
+    - name: clear out old cert
+      file:
+        path: "{{ host_specific_files }}/crypto/{{ item }}"
+        state: absent
+      with_items:
+        - server-fullchain.crt
+        - server-intermediate.crt
+        - server.crt
+        - server.key
+        - server.csr
+
+    # can skip this is we just use the expiration in the cert data
+    - name: copy in cert if we have it
+      copy:
+        content: "{{ vault_host_cert }}"
+        dest: "{{ host_specific_files }}/crypto/server.crt"
+        mode: '0600'
+      when: vault_host_cert is defined
+
+    - name: getting a challenge from {{ which_ca }} to put in the DNS (vault)
+      acme_certificate:
+        account_key_content: "{{ vault_account_key }}"
+        account_email: "{{ cert_emailaddress }}"
+        csr_content: "{{ vault_host_csr }}"
+        cert: "{{ host_specific_files }}/crypto/server.crt"
+        challenge: dns-01
+        acme_directory: "https://{{ which_ca }}/directory"
+        acme_version: 2
+        force: "{{ force_cert_renew | default( (new_csr.changed) | ternary('yes','no') ) }}"
+        # Renew if the certificate has less than N days left on it (best practice says default probably 30)
+        remaining_days: "{{ cert_renew_days }}"
+      register: dnschallenge
+  delegate_to: localhost
+
+- name: Update challenges
+  include_tasks: update-challenges.yml
+  when: dnschallenge.changed
+
+- name: sign and store certs (vault) if new challenge
+  block:
+    - name: asking {{ which_ca }} to sign our certs (vault)
+      acme_certificate:
+        account_key_content: "{{ vault_account_key }}"
+        account_email: "{{ cert_emailaddress }}"
+        csr_content: "{{ vault_host_csr }}"
+        cert: "{{ host_specific_files }}/crypto/server.crt"
+        challenge: dns-01
+        acme_directory: "https://{{ which_ca }}/directory"
+        remaining_days: "{{ cert_renew_days }}"
+        force: "{{ force_cert_renew | default(false) }}"
+        acme_version: 2
+        data: "{{ dnschallenge }}"
+        retrieve_all_alternates: yes
+      register: certs_signed
+      when: dnschallenge.changed
+    
+    - name: debug
+      debug:
+        var: certs_signed
+
+    - name: get expiration date
+      community.crypto.x509_certificate_info:
+        content: "{{ certs_signed.all_chains[0].cert }}"
+      when: certs_signed.changed
+      register: cert_info
+
+    - name: store results if changed
+      community.hashi_vault.vault_write:
+        path: "{{ vault_cert_path }}/{{ inventory_hostname }}"
+        data:
+          data:
+            "server-key": "{{ vault_host_key }}"
+            "server-csr": "{{ vault_host_csr }}"
+            "san": "{{ vault_host_san }}"
+            "server-cert": "{{ certs_signed.all_chains[0].cert }}"
+            "server-fullchain": "{{ certs_signed.all_chains[0].full_chain }}"
+            "server-intermediate": "{{ certs_signed.all_chains[0].chain }}"
+            "notafter": "{{ cert_info.not_after }}"
+            "ca": "{{ which_ca }}"
+      when: certs_signed.changed 
+  delegate_to: localhost
+  when: dnschallenge.changed
+
+- name: remove cert
+  file:
+    path: "{{ host_specific_files }}/crypto/server.crt"
+    state: absent
+
+  delegate_to: localhost
+
