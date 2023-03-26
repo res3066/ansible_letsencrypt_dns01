@@ -327,7 +327,7 @@ define `vault_cert_mount` to enable vault
 
 `vault_cert_path: "kv/data/certs/{{ cert_machine }}"`
 `mount/letsencrypt/macgis.com/macgis.com`
-
+```
 {
   "server-cert": "cert",
   "server-csr": "csr",
@@ -338,10 +338,12 @@ define `vault_cert_mount` to enable vault
   "notafter": "20230528112832Z",
   "ca": "acme-staging-v02.api.letsencrypt.org"
 }
+```
 
 let's encrypt account information:
 `vault_le_account_path: "kv/data/letsencrypt"`
 `mount/letencrypt/acme-staging-v02.api.letsencrypt.org/letsencrypt@gbp.gaige.net`
+```
 {
   "account-key": "key",
   "acme_directory": "https://acme-staging-v02.api.letsencrypt.org/directory",
@@ -349,6 +351,7 @@ let's encrypt account information:
     "mailto:letsencrypt@gbp.gaige.net"
   ]
 }
+```
 
 To get access to the defaults information only, use:
     - name: get defaults from letsencrypt
