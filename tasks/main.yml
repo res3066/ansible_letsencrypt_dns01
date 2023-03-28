@@ -1,6 +1,34 @@
 ---
 # tasks file for letsencrypt-dns01    
 
+- name: retrieve nsupdate credentials from vault
+  block:
+    - name: prepare to get servers
+      set_fact:
+        new_servers: []
+
+    - name: retrieve nsupdate credentials
+      community.hashi_vault.vault_read:
+        path: "{{ vault_nsupdate_mount }}/data/nsupdate/{{ acmecnamezone }}/{{ item.name }}"
+      register: nsupdate_vault
+      delegate_to: localhost
+      loop: "{{ acmeservers }}"
+  
+    - name: update nsupdate credentials as appropriate
+      set_fact:
+        acmeservers:
+          - name: "{{ item.item.name }}"
+            algorithm: "{{ item.data.data.data.hmac }}"
+            key: "{{ item.data.data.data.key_name }}"
+            secret: "{{ item.data.data.data.key_secret }}"
+      loop: "{{ nsupdate_vault.results }}"
+
+    - name: override settings
+      set_fact:
+        acmeservers: "{{ new_servers }}"
+  when: vault_nsupdate_mount is defined and acmecnamezone is defined
+
+
 - name: validate configuration
   fail:
     msg: need either acmeservers or route53 working

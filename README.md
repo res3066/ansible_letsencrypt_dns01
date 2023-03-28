@@ -322,8 +322,13 @@ total 33
 
 # Storage of crypto material in vault
 
-define `vault_cert_mount` to enable vault
 
+define `vault_nsupdate_mount` to enable vault for nsupdate secrets
+`acmecnamezone` must be configured
+`acmeservers` must be an array of dictionaries with key `name`
+
+
+define `vault_cert_mount` to enable vault
 
 `vault_cert_path: "kv/data/certs/{{ cert_machine }}"`
 `mount/letsencrypt/macgis.com/macgis.com`
