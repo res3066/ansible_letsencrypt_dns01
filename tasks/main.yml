@@ -22,6 +22,7 @@
             key: "{{ item.data.data.data.key_name }}"
             secret: "{{ item.data.data.data.key_secret }}"
       loop: "{{ nsupdate_vault.results }}"
+      no_log: True
 
     - name: override settings
       set_fact:
