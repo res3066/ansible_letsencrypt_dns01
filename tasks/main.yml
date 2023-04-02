@@ -16,7 +16,7 @@
   
     - name: update nsupdate credentials as appropriate
       set_fact:
-        acmeservers:
+        new_servers:
           - name: "{{ item.item.name }}"
             algorithm: "{{ item.data.data.data.hmac }}"
             key: "{{ item.data.data.data.key_name }}"
